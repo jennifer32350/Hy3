@@ -50,6 +50,7 @@ files = ["src", "tests"]
 addopts = "-ra -p no:cacheprovider"
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = ["live: requires an explicitly configured real Hy3 endpoint"]
 
 [tool.coverage.run]
 branch = true
