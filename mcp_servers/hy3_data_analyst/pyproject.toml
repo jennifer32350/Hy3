@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hy3-data-analyst-mcp"
+version = "0.1.0"
+description = "A local stdio MCP server for safe, Hy3-assisted data analysis."
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+license = { text = "Tencent Hunyuan Community License" }
+authors = [{ name = "Tencent Hunyuan" }]
+dependencies = [
+    "mcp>=1.27,<2",
+    "openai>=2,<3",
+    "pandas>=2.2,<4",
+    "pydantic>=2.10,<3",
+]
+
+[project.scripts]
+hy3-data-analyst-mcp = "hy3_data_analyst_mcp.__main__:main"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.15,<2",
+    "pandas-stubs>=2.2,<4",
+    "pytest>=8.3,<10",
+    "pytest-asyncio>=0.25,<2",
+    "pytest-cov>=6,<8",
+    "respx>=0.22,<1",
+    "ruff>=0.11,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hy3_data_analyst_mcp"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
+
+[tool.pytest.ini_options]
+addopts = "-ra -p no:cacheprovider"
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["hy3_data_analyst_mcp"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

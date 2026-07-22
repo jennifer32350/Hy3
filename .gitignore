@@ -1,4 +1,13 @@
 .cache/
+.tools/
+.uv-cache/
+.uv-python/
+.venv/
+.mypy_cache/
+.pytest_cache/
+.test-tmp/
+.ruff_cache/
+.coverage
 .huggingface/
 .modelscope/
 .ms*
