@@ -2,6 +2,12 @@
 
 from typing import Any, Literal
 
+from hy3_data_analyst_mcp.analysis.service import AnalysisService
+from hy3_data_analyst_mcp.config import load_settings
+from hy3_data_analyst_mcp.errors import Hy3DataAnalystError
+
+MAX_QUESTION_LENGTH = 4000
+
 
 async def analyze_dataset(
     file_path: str,
@@ -15,8 +21,19 @@ async def analyze_dataset(
         question: Natural-language analysis question to answer from the dataset.
         reasoning_effort: Hy3 reasoning effort, either ``low`` or ``high``.
     """
-    del file_path, question, reasoning_effort
-    return {
-        "status": "not_implemented",
-        "message": "Hy3-assisted analysis will be implemented in phases D and E.",
-    }
+    normalized_question = question.strip()
+    if not normalized_question or len(normalized_question) > MAX_QUESTION_LENGTH:
+        return {
+            "error": "InvalidToolArgument",
+            "message": f"question must contain between 1 and {MAX_QUESTION_LENGTH} characters.",
+            "hint": "Provide a concise analysis question and retry.",
+        }
+    try:
+        settings = load_settings()
+        return await AnalysisService(settings).analyze(
+            file_path,
+            normalized_question,
+            reasoning_effort=reasoning_effort,
+        )
+    except Hy3DataAnalystError as exc:
+        return exc.as_dict()

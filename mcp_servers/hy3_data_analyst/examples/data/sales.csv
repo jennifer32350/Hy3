@@ -1,0 +1,14 @@
+date,region,category,product,units,unit_price,revenue,cost,profit,salesperson
+2026-01-05,North,Hardware,Keyboard,10,50,500,350,150,Alice
+2026-02-08,South,Hardware,Mouse,20,25,500,300,200,Bob
+2026-03-12,East,Software,Suite,5,200,1000,400,600,Chen
+2026-04-15,West,Service,Support,8,100,800,500,300,Diana
+2026-05-19,North,Software,Suite,6,200,1200,480,720,Alice
+2026-06-22,South,Service,Support,9,100,900,550,350,Bob
+2026-07-04,East,Hardware,Keyboard,12,50,600,420,180,Chen
+2026-08-11,West,Software,Suite,7,200,1400,560,-900,Diana
+2026-09-16,North,Service,Support,,100,,600,,Alice
+2026-10-20,South,Hardware,Keyboard,15,50,750,500,250,Bob
+2026-11-23,East,Software,Suite,8,200,1600,640,960,Chen
+2026-12-28,West,Service,Support,10,100,1000,650,350,Diana
+2026-12-28,West,Service,Support,10,100,1000,650,350,Diana

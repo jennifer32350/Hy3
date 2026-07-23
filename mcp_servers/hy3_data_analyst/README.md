@@ -1,12 +1,12 @@
 # Hy3 数据分析 MCP
 
 Hy3 数据分析 MCP 是一个可安装的本地 stdio MCP Server。当前版本可以安全检查 CSV、
-JSON 和 JSONL 数据集；后续阶段将通过 OpenAI 兼容接口调用 Hy3，让 Hy3 负责规划分析和
-解释证据，并由 Pandas 完成确定性的数值计算。
+JSON 和 JSONL 数据集，并通过 OpenAI 兼容接口调用 Hy3，让 Hy3 负责规划分析和解释证据，
+由 Pandas 完成确定性的数值计算。
 
-> 当前进度：阶段 A～D 的离线开发已经完成，阶段 E～M 尚未实现。
+> 当前进度：阶段 A～K 的可自动化工作已完成；真实客户端验证、录屏和 PR 尚未完成。
 > 当前开发分支：`hy3-data-analyst-mcp`。
-> 最后更新日期：2026-07-22。
+> 最后更新日期：2026-07-23。
 
 ## 当前已经具备的能力
 
@@ -25,12 +25,17 @@ JSON 和 JSONL 数据集；后续阶段将通过 OpenAI 兼容接口调用 Hy3�
 - 将认证、权限、限流、超时、网络连接、服务器、无效响应和其他 SDK 错误转换为安全的
   项目异常。
 - 对暂时性错误执行有限次数重试；认证和权限错误不会重试。
+- 提供受 Pydantic Schema 约束的分析计划，只允许 7 类固定操作。
+- 在执行前验证计划中的所有列名；无效计划只允许 Hy3 修复一次。
+- 通过本地 Pandas 执行描述统计、分组聚合、Top-K、相关性、月度趋势、缺失值和 IQR
+  异常值分析，不执行模型生成的代码或表达式。
+- 将有界的确定性 Evidence 发送给 Hy3 解释，并返回计划、证据、结论、引用、限制和警告。
 
 Server 当前会公开以下三个工具：
 
 - `inspect_dataset`：已经实现并可用。
-- `analyze_dataset`：工具接口已存在，阶段 E 完成前会明确返回尚未实现的信息。
-- `suggest_visualization`：工具接口已存在，阶段 F 完成前会明确返回尚未实现的信息。
+- `analyze_dataset`：已经实现并可用；需要配置 `HY3_API_KEY`。
+- `suggest_visualization`：已经实现并可用；需要配置 `HY3_API_KEY`。
 
 ## 完整开发进度
 
@@ -39,14 +44,14 @@ Server 当前会公开以下三个工具：
 | A | 软件包骨架和 FastMCP stdio Server | 已完成 | 已创建项目元数据、控制台入口、Server 和三个工具接口。 |
 | B | 配置、文件路径安全和数据加载 | 已完成 | 可在允许目录内读取 CSV、JSON 数组和 JSONL，并执行文件、行数和列数限制。 |
 | C | 数据集概览和 `inspect_dataset` | 已完成 | 可在没有 `HY3_API_KEY` 时执行确定性的、可序列化为 JSON 的数据检查。 |
-| D | OpenAI 兼容的 Hy3 API 客户端 | 离线部分已完成 | 普通响应、结构化响应、延迟创建、依赖注入、错误映射、超时和有限重试均已通过 mock 测试。真实 TokenHub 测试待 API Key。 |
-| E | 分析计划、执行器、Planner、证据、分析服务和 `analyze_dataset` | 待开发 | 尚未实现。 |
-| F | 图表模型、字段验证、提示词和 `suggest_visualization` | 待开发 | 尚未实现。 |
-| G | MCP 协议和最终质量门禁 | 待开发 | 当前阶段的检查已经通过；最终门禁需在阶段 E、F 完成后执行。 |
-| H | Wheel 构建和全新环境一键安装验证 | 待开发 | 软件包元数据已经存在，最终隔离安装验证尚未执行。 |
-| I | CodeBuddy 和 Cursor 配置 | 待开发 | 配置模板和真实客户端验证尚未完成。 |
-| J | 完整中英文说明、架构和安全文档 | 待开发 | 当前文件主要记录开发状态，还不是最终完整使用手册。 |
-| K | Windows 和 Ubuntu CI | 待开发 | GitHub Actions 工作流尚未创建。 |
+| D | OpenAI 兼容的 Hy3 API 客户端 | 已完成 | mock 测试及真实 TokenHub 普通响应均已通过，并已修正官方 chat-template reasoning 参数兼容性。 |
+| E | 分析计划、执行器、Planner、证据、分析服务和 `analyze_dataset` | 已完成 | 7 类白名单操作、列名校验、一次修复、Evidence、解释和真实 TokenHub 端到端分析均已通过。 |
+| F | 图表模型、字段验证、提示词和 `suggest_visualization` | 已完成 | 结构化建议、字段校验、一次修复及真实 TokenHub 图表建议均已通过。 |
+| G | MCP 协议和最终质量门禁 | 已完成 | Ruff、Mypy、Pytest、覆盖率和已安装 stdio `tools/list` 均已验证。 |
+| H | Wheel 构建和全新环境一键安装验证 | 已完成 | sdist/wheel 构建、用户级 `uv tool install` 和独立目录 stdio 握手成功。 |
+| I | CodeBuddy 和 Cursor 配置 | 模板已完成 | 两个无密钥、无个人路径模板已创建；真实客户端验证待用户环境。 |
+| J | 完整中英文说明、架构和安全文档 | 进行中 | README 已记录逐功能进度，架构、安全和演示脚本已创建；英文 README 仍待补充。 |
+| K | Windows 和 Ubuntu CI | 已完成（待远端运行） | 已创建 Windows/Ubuntu、Python 3.10/3.12 矩阵工作流；需推送后获得真实 CI 结果。 |
 | L | 真实客户端验证和演示录制 | 待开发 | 需要 TokenHub 权限以及用户参与客户端操作和录屏。 |
 | M | 根 README 入口和 Pull Request 准备 | 待开发 | 必须等前面的阶段全部通过后再执行。 |
 
@@ -57,6 +62,10 @@ Server 当前会公开以下三个工具：
 - 延迟创建 `AsyncOpenAI`，因此导入 MCP Server 时不会建立网络连接。
 - 支持配置 `base_url`、API Key、模型、超时时间、重试次数和 reasoning effort。
 - 使用非流式 Chat Completion 请求。
+- 普通响应和结构化响应均显式设置 `max_tokens=16384`，避免 Hy3 的推理过程耗尽默认输出
+  额度后只返回空的最终答案。
+- 按 Hy3 官方接口通过 `chat_template_kwargs.reasoning_effort` 传递推理模式，将工具的
+  `low` 映射为 `no_think`，将 `high` 保持为 `high`，并使用推荐的 temperature/top_p。
 - 使用 JSON Schema 请求结构化输出，并通过 Pydantic 再次校验结果。
 - 拒绝空文本响应以及不符合 Schema 的结构化响应。
 - HTTP 401 和 403 会立即转换为 `Hy3AuthenticationError`，不会重试。
@@ -77,7 +86,8 @@ Server 当前会公开以下三个工具：
 - 可选的真实 TokenHub 冒烟测试。
 
 真实 TokenHub 测试默认跳过，避免本地测试或 CI 在未授权的情况下使用密钥、网络和远程
-调用额度。只有显式提供 API Key 并开启 live test 时才会执行。
+调用额度。只有显式提供 API Key 并开启 live test 时才会执行。2026-07-23 已使用环境变量完成
+真实验证，API Key 未写入文件或测试输出。
 
 ## 环境变量
 
@@ -111,8 +121,8 @@ HY3_MAX_COLUMNS
 最近一次验证在 Windows、Python 3.13.2 环境中完成：
 
 ```text
-Pytest：                 54 passed，2 skipped
-项目总覆盖率：           86%
+Pytest（含 live）：       76 passed，1 skipped
+项目总覆盖率：           87%
 hy3_client.py 覆盖率：  92%
 Ruff 格式检查：          通过
 Ruff 代码检查：          通过
@@ -158,20 +168,47 @@ $env:HY3_RUN_LIVE_TESTS = "1"
 uv run pytest -m live tests/integration/test_hy3_client.py
 ```
 
-当前环境没有提供真实 API Key，因此上述 live test 尚未执行。这不会影响阶段 D 的离线
-实现和 mock 验收结果，但真实 TokenHub 兼容性仍需在获得密钥后确认。
+2026-07-23 的真实验证发现，顶层 `reasoning_effort` 会导致 TokenHub 返回空的标准
+`message.content`，内容只出现在非标准 reasoning 字段。客户端现已按 Hy3 官方调用方式改为
+`chat_template_kwargs.reasoning_effort`；`low` 映射为 `no_think` 后 live test 正常返回标准
+content。真实 `analyze_dataset` 随后成功完成分组计划、4 条本地 Evidence 和证据解释；真实
+`suggest_visualization` 成功返回 bar 与 scatter 两项通过字段校验的建议。
+
+## 阶段 E 的实现详情
+
+- `AnalysisPlan` 使用严格 Schema，禁止额外字段，操作仅限 `describe`、
+  `groupby_aggregate`、`top_k`、`correlation`、`time_trend`、`missing_values` 和
+  `outlier_iqr`。
+- 每种操作会校验必需参数，Planner 还会把目标列、分组列和时间列与真实数据集列名比对，
+  拒绝模型发明的列。
+- 首次计划无效时执行一次受约束修复；第二次仍无效则返回可读的
+  `InvalidAnalysisPlanError`。
+- Executor 仅调用预先编写的 Pandas 函数，不使用 `eval()`、`exec()`、动态 SQL、
+  `DataFrame.query()` 或模型生成代码。
+- 执行结果最多返回 100 条记录，并在截断时附带警告。
+- Planner 只接收问题、列语义、局部统计和行数；解释器只接收问题、已验证计划和确定性
+  Evidence，不会接收完整 DataFrame。
+- `analyze_dataset` 拒绝空问题和超过 4000 字符的问题，并把项目异常转换成稳定的工具错误。
+
+阶段 E 测试覆盖 7 类执行器、非数值列错误、无效日期列、计划参数约束、额外字段、虚构
+列名、修复成功、两次失败、Evidence 传递以及端到端分析服务编排。
+
+## 阶段 F～K 的实现和部署状态
+
+- 图表建议只允许 bar、line、scatter、histogram 和 box，所有字段映射都必须来自真实列名；
+  无效结果仅修复一次，不会静默替换字段。
+- 已生成 `dist/hy3_data_analyst_mcp-0.1.0-py3-none-any.whl` 和源码包。
+- 已通过 `uv tool install --force .` 安装用户级命令，并在子项目之外完成 stdio 初始化；
+  `tools/list` 返回且只返回三个预期工具。
+- [CodeBuddy 模板](examples/codebuddy.mcp.json) 和 [Cursor 模板](examples/cursor.mcp.json)
+  均使用占位密钥与占位绝对路径。Cursor 模板复制到 `.cursor/mcp.json` 后需重载客户端。
+- 已添加 [架构说明](docs/architecture.md)、[安全说明](docs/security.md) 和
+  [演示脚本](docs/demo-script.md)，示例销售数据位于 `examples/data/sales.csv`。
+- CI 工作流覆盖 Windows/Ubuntu 和 Python 3.10/3.12，但只有推送到 GitHub 后才能确认远端
+  runner 结果。
 
 ## 下一阶段
 
-阶段 E 将实现：
-
-- 受 Pydantic Schema 约束的分析计划。
-- 白名单形式的确定性 Pandas 执行器。
-- Planner 提示词和一次结构修复机会。
-- 分析证据的构造和传递。
-- 基于确定性证据的结果解释。
-- 完整分析服务编排。
-- 可用的 `analyze_dataset` MCP 工具。
-
-项目不会接受或执行模型生成的任意 Python、Shell 或 SQL，也不会使用 `eval()` 或
-`exec()` 执行模型输出。
+TokenHub API 及服务端真实调用已经验证。仍需用户参与的下一步是在 CodeBuddy 和 Cursor 中
+分别确认客户端发现及调用三个工具，并按演示脚本录制 GIF/视频。未经明确授权，本轮不会
+提交、推送或创建 PR。

@@ -1,0 +1,33 @@
+name: Hy3 Data Analyst MCP
+
+on:
+  push:
+    paths:
+      - "mcp_servers/hy3_data_analyst/**"
+      - ".github/workflows/hy3-data-analyst-mcp.yml"
+  pull_request:
+    paths:
+      - "mcp_servers/hy3_data_analyst/**"
+      - ".github/workflows/hy3-data-analyst-mcp.yml"
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.10", "3.12"]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: mcp_servers/hy3_data_analyst
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: uv sync --all-groups
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run mypy src tests
+      - run: uv run pytest --cov=hy3_data_analyst_mcp --cov-fail-under=80
+      - run: uv build

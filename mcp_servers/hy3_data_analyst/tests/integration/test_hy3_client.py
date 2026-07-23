@@ -17,7 +17,12 @@ from hy3_data_analyst_mcp.errors import (
     Hy3ResponseError,
     Hy3TimeoutError,
 )
-from hy3_data_analyst_mcp.hy3_client import Hy3Client
+from hy3_data_analyst_mcp.hy3_client import (
+    HY3_MAX_OUTPUT_TOKENS,
+    HY3_TEMPERATURE,
+    HY3_TOP_P,
+    Hy3Client,
+)
 
 
 class Answer(BaseModel):
@@ -56,6 +61,19 @@ async def test_plain_completion_is_non_streaming(fixture_dir: Path) -> None:
     assert result == "result"
     assert completions.calls[0]["stream"] is False
     assert completions.calls[0]["model"] == "hy3"
+    assert completions.calls[0]["max_tokens"] == HY3_MAX_OUTPUT_TOKENS
+    assert completions.calls[0]["temperature"] == HY3_TEMPERATURE
+    assert completions.calls[0]["top_p"] == HY3_TOP_P
+    assert completions.calls[0]["extra_body"]["chat_template_kwargs"]["reasoning_effort"] == "high"
+
+
+async def test_low_reasoning_uses_hy3_no_think_mode(fixture_dir: Path) -> None:
+    client, completions = _client(fixture_dir, [_response("result")])
+
+    await client.complete(system_prompt="system", user_prompt="user", reasoning_effort="low")
+
+    kwargs = completions.calls[0]["extra_body"]["chat_template_kwargs"]
+    assert kwargs["reasoning_effort"] == "no_think"
 
 
 async def test_structured_completion_validates_schema(fixture_dir: Path) -> None:
@@ -67,6 +85,7 @@ async def test_structured_completion_validates_schema(fixture_dir: Path) -> None
 
     assert result == Answer(value=7)
     assert completions.calls[0]["response_format"]["type"] == "json_schema"
+    assert completions.calls[0]["max_tokens"] == HY3_MAX_OUTPUT_TOKENS
 
 
 @pytest.mark.parametrize("content", [None, "", "not-json", '{"value":"bad"}'])

@@ -20,6 +20,9 @@ from hy3_data_analyst_mcp.errors import (
 )
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
+HY3_MAX_OUTPUT_TOKENS = 16_384
+HY3_TEMPERATURE = 0.9
+HY3_TOP_P = 1.0
 
 
 class Hy3Client:
@@ -55,7 +58,16 @@ class Hy3Client:
                     {"role": "user", "content": user_prompt},
                 ],
                 "stream": False,
-                "reasoning_effort": reasoning_effort or self._settings.reasoning_effort,
+                "max_tokens": HY3_MAX_OUTPUT_TOKENS,
+                "temperature": HY3_TEMPERATURE,
+                "top_p": HY3_TOP_P,
+                "extra_body": {
+                    "chat_template_kwargs": {
+                        "reasoning_effort": _hy3_reasoning_effort(
+                            reasoning_effort or self._settings.reasoning_effort
+                        )
+                    }
+                },
             }
         )
         try:
@@ -89,7 +101,16 @@ class Hy3Client:
                     {"role": "user", "content": user_prompt},
                 ],
                 "stream": False,
-                "reasoning_effort": reasoning_effort or self._settings.reasoning_effort,
+                "max_tokens": HY3_MAX_OUTPUT_TOKENS,
+                "temperature": HY3_TEMPERATURE,
+                "top_p": HY3_TOP_P,
+                "extra_body": {
+                    "chat_template_kwargs": {
+                        "reasoning_effort": _hy3_reasoning_effort(
+                            reasoning_effort or self._settings.reasoning_effort
+                        )
+                    }
+                },
                 "response_format": {
                     "type": "json_schema",
                     "json_schema": {
@@ -156,3 +177,8 @@ class Hy3Client:
                     "Check the endpoint configuration and retry.",
                 ) from exc
         raise AssertionError("retry loop exited unexpectedly")
+
+
+def _hy3_reasoning_effort(value: str) -> str:
+    """Translate the public low/high setting to Hy3 chat-template values."""
+    return "no_think" if value == "low" else "high"
