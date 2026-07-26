@@ -1,5 +1,0 @@
-mcp_servers/hy3_data_analyst/evals/baselines/*.json text eol=lf
-mcp_servers/hy3_data_analyst/evals/cases/*.json text eol=lf
-mcp_servers/hy3_data_analyst/evals/data/*.csv text eol=lf
-mcp_servers/hy3_data_analyst/evals/data/*.json text eol=lf
-mcp_servers/hy3_data_analyst/evals/data/*.jsonl text eol=lf

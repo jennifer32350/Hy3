@@ -1,0 +1,5 @@
+evals/baselines/*.json text eol=lf
+evals/cases/*.json text eol=lf
+evals/data/*.csv text eol=lf
+evals/data/*.json text eol=lf
+evals/data/*.jsonl text eol=lf
