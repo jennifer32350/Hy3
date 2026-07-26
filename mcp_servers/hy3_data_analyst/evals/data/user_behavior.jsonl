@@ -1,0 +1,15 @@
+{"event_id":"E001","date":"2025-01-05","cohort":"New","device":"Mobile","channel":"Organic","sessions":3,"conversions":0,"duration_minutes":12}
+{"event_id":"E002","date":"2025-01-12","cohort":"Returning","device":"Desktop","channel":"Direct","sessions":5,"conversions":1,"duration_minutes":28}
+{"event_id":"E003","date":"2025-01-19","cohort":"New","device":"Desktop","channel":"Paid","sessions":2,"conversions":1,"duration_minutes":18}
+{"event_id":"E004","date":"2025-02-02","cohort":"Returning","device":"Mobile","channel":"Organic","sessions":6,"conversions":1,"duration_minutes":35}
+{"event_id":"E005","date":"2025-02-09","cohort":"New","device":"Mobile","channel":"Paid","sessions":4,"conversions":0,"duration_minutes":15}
+{"event_id":"E006","date":"2025-02-16","cohort":"Returning","device":"Tablet","channel":"Direct","sessions":3,"conversions":1,"duration_minutes":22}
+{"event_id":"E007","date":"2025-03-02","cohort":"New","device":"Desktop","channel":"Organic","sessions":5,"conversions":1,"duration_minutes":30}
+{"event_id":"E008","date":"2025-03-09","cohort":"Returning","device":"Mobile","channel":"Paid","sessions":7,"conversions":2,"duration_minutes":42}
+{"event_id":"E009","date":"2025-03-16","cohort":"New","device":"Tablet","channel":"Direct","sessions":2,"conversions":0,"duration_minutes":10}
+{"event_id":"E010","date":"2025-04-06","cohort":"Returning","device":"Desktop","channel":"Organic","sessions":8,"conversions":2,"duration_minutes":48}
+{"event_id":"E011","date":"2025-04-13","cohort":"New","device":"Mobile","channel":"Direct","sessions":4,"conversions":1,"duration_minutes":20}
+{"event_id":"E012","date":"2025-04-20","cohort":"Returning","device":"Mobile","channel":"Paid","sessions":9,"conversions":3,"duration_minutes":55}
+{"event_id":"E013","date":"2025-05-04","cohort":"New","device":"Desktop","channel":"Organic","sessions":6,"conversions":1,"duration_minutes":34}
+{"event_id":"E014","date":"2025-05-11","cohort":"Returning","device":"Tablet","channel":"Direct","sessions":4,"conversions":1,"duration_minutes":26}
+{"event_id":"E015","date":"2025-05-18","cohort":"New","device":"Mobile","channel":"Paid","sessions":5,"conversions":null,"duration_minutes":24}

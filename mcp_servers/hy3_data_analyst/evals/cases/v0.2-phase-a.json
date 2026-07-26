@@ -1,0 +1,483 @@
+[
+  {
+    "case_id": "BASIC-01",
+    "category": "basic_statistics",
+    "dataset": "sales.csv",
+    "question": "销售数据共有多少行，收入总额是多少？",
+    "required_operations": ["describe"],
+    "required_evidence_values": [
+      {"check": "row_count", "expected": 18},
+      {"check": "numeric_sum", "column": "revenue", "expected": 22250.0}
+    ],
+    "forbidden_claims": ["收入总额包含缺失收入的推算值"],
+    "expected_status": "supported",
+    "v01_plan": null
+  },
+  {
+    "case_id": "BASIC-02",
+    "category": "basic_statistics",
+    "dataset": "sales.csv",
+    "question": "有效利润记录的平均利润是多少？",
+    "required_operations": ["describe"],
+    "required_evidence_values": [
+      {"check": "numeric_mean", "column": "profit", "expected": 465.88235294117646}
+    ],
+    "forbidden_claims": ["平均值使用了 18 条有效利润记录"],
+    "expected_status": "supported",
+    "v01_plan": {"operation": "describe", "target_columns": ["profit"], "rationale": "Summarize profit."}
+  },
+  {
+    "case_id": "BASIC-03",
+    "category": "basic_statistics",
+    "dataset": "operations.csv",
+    "question": "运营记录中的工单总量是多少？",
+    "required_operations": ["describe"],
+    "required_evidence_values": [
+      {"check": "numeric_sum", "column": "tickets", "expected": 1645.0}
+    ],
+    "forbidden_claims": ["工单量等于已解决工单量"],
+    "expected_status": "supported",
+    "v01_plan": null
+  },
+  {
+    "case_id": "BASIC-04",
+    "category": "basic_statistics",
+    "dataset": "operations.csv",
+    "question": "有效记录的平均等待时长是多少分钟？",
+    "required_operations": ["describe"],
+    "required_evidence_values": [
+      {"check": "numeric_mean", "column": "avg_wait_minutes", "expected": 9.0}
+    ],
+    "forbidden_claims": ["所有 16 行都有有效等待时长"],
+    "expected_status": "supported",
+    "v01_plan": {"operation": "describe", "target_columns": ["avg_wait_minutes"], "rationale": "Summarize waiting time."}
+  },
+  {
+    "case_id": "BASIC-05",
+    "category": "basic_statistics",
+    "dataset": "user_behavior.jsonl",
+    "question": "匿名行为样本共记录了多少次会话？",
+    "required_operations": ["describe"],
+    "required_evidence_values": [
+      {"check": "numeric_sum", "column": "sessions", "expected": 73.0}
+    ],
+    "forbidden_claims": ["会话数等于用户人数"],
+    "expected_status": "supported",
+    "v01_plan": null
+  },
+  {
+    "case_id": "BASIC-06",
+    "category": "basic_statistics",
+    "dataset": "data_quality.json",
+    "question": "amount 字段有多少个原始缺失值？",
+    "required_operations": ["missing_values"],
+    "required_evidence_values": [
+      {"check": "missing_count", "column": "amount", "expected": 1}
+    ],
+    "forbidden_claims": ["字符串 bad 属于原始空值"],
+    "expected_status": "supported",
+    "v01_plan": {"operation": "missing_values", "target_columns": ["amount"], "rationale": "Count missing amount values."}
+  },
+  {
+    "case_id": "COMPOSITE-01",
+    "category": "composite_analysis",
+    "dataset": "sales.csv",
+    "question": "比较各区域收入和利润，并检查利润异常值是否影响区域表现判断。",
+    "required_operations": ["multi_aggregate", "outlier_iqr"],
+    "required_evidence_values": [
+      {"check": "group_sum", "group_by": "region", "group": "North", "column": "revenue", "expected": 8600.0},
+      {"check": "group_sum", "group_by": "region", "group": "East", "column": "profit", "expected": 0.0},
+      {"check": "iqr_outliers", "column": "profit", "expected": [-900.0, 1150.0, 1300.0, 1350.0]}
+    ],
+    "forbidden_claims": ["East 利润为零意味着没有销售记录"],
+    "expected_status": "supported",
+    "v01_plan": null
+  },
+  {
+    "case_id": "COMPOSITE-02",
+    "category": "composite_analysis",
+    "dataset": "sales.csv",
+    "question": "各产品类别贡献了多少收入和利润？",
+    "required_operations": ["multi_aggregate"],
+    "required_evidence_values": [
+      {"check": "group_sum", "group_by": "category", "group": "Software", "column": "revenue", "expected": 6800.0},
+      {"check": "group_sum", "group_by": "category", "group": "Software", "column": "profit", "expected": 4400.0}
+    ],
+    "forbidden_claims": ["Hardware 是利润贡献最高的类别"],
+    "expected_status": "supported",
+    "v01_plan": null
+  },
+  {
+    "case_id": "COMPOSITE-03",
+    "category": "composite_analysis",
+    "dataset": "sales.csv",
+    "question": "计算各区域利润率并指出 North 的利润率。",
+    "required_operations": ["multi_aggregate", "derived_metric"],
+    "required_evidence_values": [
+      {"check": "group_ratio", "group_by": "region", "group": "North", "numerator": "profit", "denominator": "revenue", "expected": 0.4883720930232558}
+    ],
+    "forbidden_claims": ["利润率由模型估算"],
+    "expected_status": "supported",
+    "v01_plan": null
+  },
+  {
+    "case_id": "COMPOSITE-04",
+    "category": "composite_analysis",
+    "dataset": "operations.csv",
+    "question": "比较站点工单量、解决量和解决率，给出 Beta 的解决率。",
+    "required_operations": ["multi_aggregate", "derived_metric"],
+    "required_evidence_values": [
+      {"check": "group_ratio", "group_by": "site", "group": "Beta", "numerator": "resolved", "denominator": "tickets", "expected": 0.9211764705882353}
+    ],
+    "forbidden_claims": ["解决率超过 100%"],
+    "expected_status": "supported",
+    "v01_plan": null
+  },
+  {
+    "case_id": "COMPOSITE-05",
+    "category": "composite_analysis",
+    "dataset": "user_behavior.jsonl",
+    "question": "比较新访客与回访访客的会话和转化，计算 Returning 的每会话转化率。",
+    "required_operations": ["multi_aggregate", "derived_metric"],
+    "required_evidence_values": [
+      {"check": "group_ratio", "group_by": "cohort", "group": "Returning", "numerator": "conversions", "denominator": "sessions", "expected": 0.2619047619047619}
+    ],
+    "forbidden_claims": ["转化率证明渠道导致了转化"],
+    "expected_status": "supported",
+    "v01_plan": null
+  },
+  {
+    "case_id": "COMPOSITE-06",
+    "category": "composite_analysis",
+    "dataset": "data_quality.json",
+    "question": "综合判断该文件的数据质量：重复、金额转换和日期转换分别有什么问题？",
+    "required_operations": ["missing_values", "value_counts"],
+    "required_evidence_values": [
+      {"check": "duplicate_row_count", "expected": 1},
+      {"check": "invalid_numeric_count", "column": "amount", "expected": 1},
+      {"check": "invalid_date_count", "column": "event_date", "expected": 1}
+    ],
+    "forbidden_claims": ["检查过程已经修改原始文件"],
+    "expected_status": "supported",
+    "v01_plan": null
+  },
+  {
+    "case_id": "TREND-01",
+    "category": "trend",
+    "dataset": "sales.csv",
+    "question": "按月汇总销售收入，核对 2025 年 1 月和 9 月。",
+    "required_operations": ["time_trend"],
+    "required_evidence_values": [
+      {"check": "period_sum", "time_column": "date", "period": "2025-01", "column": "revenue", "expected": 2100.0},
+      {"check": "period_sum", "time_column": "date", "period": "2025-09", "column": "revenue", "expected": 2100.0}
+    ],
+    "forbidden_claims": ["月度收入持续单调增长"],
+    "expected_status": "supported",
+    "v01_plan": {"operation": "time_trend", "target_columns": ["revenue"], "aggregation": "sum", "time_column": "date", "sort_order": "asc", "rationale": "Monthly revenue trend."}
+  },
+  {
+    "case_id": "TREND-02",
+    "category": "trend",
+    "dataset": "sales.csv",
+    "question": "比较 2025 年 6 月与 7 月利润，给出绝对变化。",
+    "required_operations": ["period_compare"],
+    "required_evidence_values": [
+      {"check": "period_change", "time_column": "date", "period_a": "2025-06", "period_b": "2025-07", "column": "profit", "measure": "absolute", "expected": 1680.0}
+    ],
+    "forbidden_claims": ["利润变化是季节性导致的"],
+    "expected_status": "supported",
+    "v01_plan": {"operation": "time_trend", "target_columns": ["profit"], "aggregation": "sum", "time_column": "date", "sort_order": "asc", "rationale": "Monthly profit trend used for manual comparison."}
+  },
+  {
+    "case_id": "TREND-03",
+    "category": "trend",
+    "dataset": "operations.csv",
+    "question": "1 月到 4 月的工单量变化了多少？",
+    "required_operations": ["period_compare"],
+    "required_evidence_values": [
+      {"check": "period_change", "time_column": "date", "period_a": "2025-01", "period_b": "2025-04", "column": "tickets", "measure": "absolute", "expected": 80.0}
+    ],
+    "forbidden_claims": ["工单增长必然由人员减少造成"],
+    "expected_status": "supported",
+    "v01_plan": {"operation": "time_trend", "target_columns": ["tickets"], "aggregation": "sum", "time_column": "date", "sort_order": "asc", "rationale": "Monthly ticket trend used for manual comparison."}
+  },
+  {
+    "case_id": "TREND-04",
+    "category": "trend",
+    "dataset": "operations.csv",
+    "question": "按月比较平均等待时长，4 月平均值是多少？",
+    "required_operations": ["time_trend"],
+    "required_evidence_values": [
+      {"check": "period_mean", "time_column": "date", "period": "2025-04", "column": "avg_wait_minutes", "expected": 6.833333333333333}
+    ],
+    "forbidden_claims": ["4 月四条记录都没有缺失"],
+    "expected_status": "supported",
+    "v01_plan": {"operation": "time_trend", "target_columns": ["avg_wait_minutes"], "aggregation": "mean", "time_column": "date", "sort_order": "asc", "rationale": "Monthly waiting-time trend."}
+  },
+  {
+    "case_id": "TREND-05",
+    "category": "trend",
+    "dataset": "user_behavior.jsonl",
+    "question": "3 月到 4 月会话数增长率是多少？",
+    "required_operations": ["period_compare"],
+    "required_evidence_values": [
+      {"check": "period_change", "time_column": "date", "period_a": "2025-03", "period_b": "2025-04", "column": "sessions", "measure": "rate", "expected": 0.5}
+    ],
+    "forbidden_claims": ["增长证明产品改版有效"],
+    "expected_status": "supported",
+    "v01_plan": {"operation": "time_trend", "target_columns": ["sessions"], "aggregation": "sum", "time_column": "date", "sort_order": "asc", "rationale": "Monthly sessions used for manual comparison."}
+  },
+  {
+    "case_id": "TREND-06",
+    "category": "trend",
+    "dataset": "user_behavior.jsonl",
+    "question": "4 月到 5 月有效转化数的绝对变化是多少？",
+    "required_operations": ["period_compare"],
+    "required_evidence_values": [
+      {"check": "period_change", "time_column": "date", "period_a": "2025-04", "period_b": "2025-05", "column": "conversions", "measure": "absolute", "expected": -4.0}
+    ],
+    "forbidden_claims": ["缺失转化值被当作一次转化"],
+    "expected_status": "supported",
+    "v01_plan": {"operation": "time_trend", "target_columns": ["conversions"], "aggregation": "sum", "time_column": "date", "sort_order": "asc", "rationale": "Monthly conversions used for manual comparison."}
+  },
+  {
+    "case_id": "ANOMALY-01",
+    "category": "anomaly",
+    "dataset": "sales.csv",
+    "question": "使用 1.5 倍 IQR 规则找出利润异常值。",
+    "required_operations": ["outlier_iqr"],
+    "required_evidence_values": [
+      {"check": "iqr_outliers", "column": "profit", "expected": [-900.0, 1150.0, 1300.0, 1350.0]}
+    ],
+    "forbidden_claims": ["所有异常值都是数据错误"],
+    "expected_status": "supported",
+    "v01_plan": {"operation": "outlier_iqr", "target_columns": ["profit"], "rationale": "Detect profit outliers."}
+  },
+  {
+    "case_id": "ANOMALY-02",
+    "category": "anomaly",
+    "dataset": "sales.csv",
+    "question": "收入最高的订单记录是多少？",
+    "required_operations": ["top_k"],
+    "required_evidence_values": [
+      {"check": "numeric_max", "column": "revenue", "expected": 2100.0}
+    ],
+    "forbidden_claims": ["最高收入订单也是最高利润订单"],
+    "expected_status": "supported",
+    "v01_plan": {"operation": "top_k", "target_columns": ["revenue"], "group_by": ["order_id"], "limit": 1, "rationale": "Find the largest revenue record."}
+  },
+  {
+    "case_id": "ANOMALY-03",
+    "category": "anomaly",
+    "dataset": "operations.csv",
+    "question": "停机时长最高的记录是多少分钟？",
+    "required_operations": ["top_k"],
+    "required_evidence_values": [
+      {"check": "numeric_max", "column": "downtime_minutes", "expected": 30.0}
+    ],
+    "forbidden_claims": ["最高停机时长代表系统故障"],
+    "expected_status": "supported",
+    "v01_plan": {"operation": "top_k", "target_columns": ["downtime_minutes"], "group_by": ["record_id"], "limit": 1, "rationale": "Find the largest downtime record."}
+  },
+  {
+    "case_id": "ANOMALY-04",
+    "category": "anomaly",
+    "dataset": "operations.csv",
+    "question": "平均等待时长是否存在 IQR 异常值？",
+    "required_operations": ["outlier_iqr"],
+    "required_evidence_values": [
+      {"check": "iqr_outliers", "column": "avg_wait_minutes", "expected": []}
+    ],
+    "forbidden_claims": ["没有 IQR 异常值意味着没有运营风险"],
+    "expected_status": "supported",
+    "v01_plan": {"operation": "outlier_iqr", "target_columns": ["avg_wait_minutes"], "rationale": "Detect waiting-time outliers."}
+  },
+  {
+    "case_id": "ANOMALY-05",
+    "category": "anomaly",
+    "dataset": "user_behavior.jsonl",
+    "question": "单条行为记录的最长停留时长是多少？",
+    "required_operations": ["top_k"],
+    "required_evidence_values": [
+      {"check": "numeric_max", "column": "duration_minutes", "expected": 55.0}
+    ],
+    "forbidden_claims": ["最长停留一定对应最高满意度"],
+    "expected_status": "supported",
+    "v01_plan": {"operation": "top_k", "target_columns": ["duration_minutes"], "group_by": ["event_id"], "limit": 1, "rationale": "Find the longest duration record."}
+  },
+  {
+    "case_id": "ANOMALY-06",
+    "category": "anomaly",
+    "dataset": "data_quality.json",
+    "question": "score 字段按 IQR 规则有哪些异常值？",
+    "required_operations": ["outlier_iqr"],
+    "required_evidence_values": [
+      {"check": "iqr_outliers", "column": "score", "expected": [0.0]}
+    ],
+    "forbidden_claims": ["零分记录应被自动删除"],
+    "expected_status": "supported",
+    "v01_plan": {"operation": "outlier_iqr", "target_columns": ["score"], "rationale": "Detect score outliers."}
+  },
+  {
+    "case_id": "QUALITY-01",
+    "category": "quality",
+    "dataset": "sales.csv",
+    "question": "收入和利润字段分别缺失多少行？",
+    "required_operations": ["missing_values"],
+    "required_evidence_values": [
+      {"check": "missing_count", "column": "revenue", "expected": 1},
+      {"check": "missing_count", "column": "profit", "expected": 1}
+    ],
+    "forbidden_claims": ["缺失记录已被自动删除"],
+    "expected_status": "supported",
+    "v01_plan": {"operation": "missing_values", "target_columns": ["revenue", "profit"], "rationale": "Count missing sales measures."}
+  },
+  {
+    "case_id": "QUALITY-02",
+    "category": "quality",
+    "dataset": "sales.csv",
+    "question": "数据中有多少条完整重复行，去重后会剩多少行？",
+    "required_operations": ["missing_values"],
+    "required_evidence_values": [
+      {"check": "duplicate_row_count", "expected": 1},
+      {"check": "deduplicated_row_count", "expected": 17}
+    ],
+    "forbidden_claims": ["检查已修改源 CSV"],
+    "expected_status": "supported",
+    "v01_plan": null
+  },
+  {
+    "case_id": "QUALITY-03",
+    "category": "quality",
+    "dataset": "operations.csv",
+    "question": "哪些运营字段存在缺失，受影响多少行？",
+    "required_operations": ["missing_values"],
+    "required_evidence_values": [
+      {"check": "missing_count", "column": "avg_wait_minutes", "expected": 1}
+    ],
+    "forbidden_claims": ["缺失等待时长等于零分钟"],
+    "expected_status": "supported",
+    "v01_plan": {"operation": "missing_values", "target_columns": ["avg_wait_minutes"], "rationale": "Count missing waiting times."}
+  },
+  {
+    "case_id": "QUALITY-04",
+    "category": "quality",
+    "dataset": "user_behavior.jsonl",
+    "question": "转化字段有多少缺失值，它会影响哪类计算？",
+    "required_operations": ["missing_values"],
+    "required_evidence_values": [
+      {"check": "missing_count", "column": "conversions", "expected": 1}
+    ],
+    "forbidden_claims": ["缺失转化值代表零转化"],
+    "expected_status": "supported",
+    "v01_plan": {"operation": "missing_values", "target_columns": ["conversions"], "rationale": "Count missing conversion values."}
+  },
+  {
+    "case_id": "QUALITY-05",
+    "category": "quality",
+    "dataset": "data_quality.json",
+    "question": "amount 中有多少个非空值无法转成数值，安全转换后的合计是多少？",
+    "required_operations": ["filter_rows", "multi_aggregate"],
+    "required_evidence_values": [
+      {"check": "invalid_numeric_count", "column": "amount", "expected": 1},
+      {"check": "coerced_numeric_sum", "column": "amount", "expected": 1206.75}
+    ],
+    "forbidden_claims": ["bad 被解析为零"],
+    "expected_status": "supported",
+    "v01_plan": null
+  },
+  {
+    "case_id": "QUALITY-06",
+    "category": "quality",
+    "dataset": "data_quality.json",
+    "question": "event_date 有多少原始缺失和无效日期，status 有多少缺失？",
+    "required_operations": ["missing_values", "value_counts"],
+    "required_evidence_values": [
+      {"check": "missing_count", "column": "event_date", "expected": 2},
+      {"check": "invalid_date_count", "column": "event_date", "expected": 1},
+      {"check": "missing_count", "column": "status", "expected": 1}
+    ],
+    "forbidden_claims": ["无效日期已自动修正"],
+    "expected_status": "supported",
+    "v01_plan": null
+  },
+  {
+    "case_id": "VISUAL-01",
+    "category": "visualization",
+    "dataset": "sales.csv",
+    "question": "生成适合比较各区域收入的柱状图，并确保图中 North 为 8600。",
+    "required_operations": ["multi_aggregate", "render_bar"],
+    "required_evidence_values": [
+      {"check": "group_sum", "group_by": "region", "group": "North", "column": "revenue", "expected": 8600.0}
+    ],
+    "forbidden_claims": ["图表数值由 Hy3 自行生成"],
+    "expected_status": "supported",
+    "v01_plan": null
+  },
+  {
+    "case_id": "VISUAL-02",
+    "category": "visualization",
+    "dataset": "sales.csv",
+    "question": "生成月度收入折线图，核对 6 月收入为 2000。",
+    "required_operations": ["time_trend", "render_line"],
+    "required_evidence_values": [
+      {"check": "period_sum", "time_column": "date", "period": "2025-06", "column": "revenue", "expected": 2000.0}
+    ],
+    "forbidden_claims": ["折线图代表预测结果"],
+    "expected_status": "supported",
+    "v01_plan": null
+  },
+  {
+    "case_id": "VISUAL-03",
+    "category": "visualization",
+    "dataset": "sales.csv",
+    "question": "用散点图展示收入与利润关系，并报告 Pearson 相关系数。",
+    "required_operations": ["correlation", "render_scatter"],
+    "required_evidence_values": [
+      {"check": "pearson", "column_a": "revenue", "column_b": "profit", "expected": 0.6248059153100717}
+    ],
+    "forbidden_claims": ["相关性证明收入导致利润变化"],
+    "expected_status": "supported",
+    "v01_plan": null
+  },
+  {
+    "case_id": "VISUAL-04",
+    "category": "visualization",
+    "dataset": "operations.csv",
+    "question": "用分组柱状图比较班次平均等待时长，核对 Day 和 Night。",
+    "required_operations": ["multi_aggregate", "render_bar"],
+    "required_evidence_values": [
+      {"check": "group_mean", "group_by": "shift", "group": "Day", "column": "avg_wait_minutes", "expected": 6.8125},
+      {"check": "group_mean", "group_by": "shift", "group": "Night", "column": "avg_wait_minutes", "expected": 11.5}
+    ],
+    "forbidden_claims": ["班次差异具有因果关系"],
+    "expected_status": "supported",
+    "v01_plan": null
+  },
+  {
+    "case_id": "VISUAL-05",
+    "category": "visualization",
+    "dataset": "user_behavior.jsonl",
+    "question": "用柱状图展示设备记录频数，Mobile 有多少条？",
+    "required_operations": ["value_counts", "render_bar"],
+    "required_evidence_values": [
+      {"check": "value_count", "column": "device", "value": "Mobile", "expected": 7}
+    ],
+    "forbidden_claims": ["记录频数等于独立用户数"],
+    "expected_status": "supported",
+    "v01_plan": null
+  },
+  {
+    "case_id": "VISUAL-06",
+    "category": "visualization",
+    "dataset": "data_quality.json",
+    "question": "展示 status 分布并标注 review 记录数。",
+    "required_operations": ["value_counts", "render_bar"],
+    "required_evidence_values": [
+      {"check": "value_count", "column": "status", "value": "review", "expected": 4}
+    ],
+    "forbidden_claims": ["缺失状态被归入 review"],
+    "expected_status": "supported",
+    "v01_plan": null
+  }
+]

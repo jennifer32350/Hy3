@@ -1,0 +1,350 @@
+{
+  "schema_version": "1.0",
+  "product_version": "0.1.0",
+  "captured_on": "2026-07-25",
+  "measurement_scope": "offline deterministic executor; no Hy3 API calls",
+  "case_manifest_sha256": "c74b9e5146d568e53f1b75424a6944839941911ac83442a9497e53fe82e08d16",
+  "dataset_sha256": {
+    "data_quality.json": "d397e34d68130c34f36c50c9e42e720ce05c2ec92425442b8479ef390ff4718d",
+    "operations.csv": "b63b41dc7c00ea6f38ff8ed86169f25fc61f5a80a98f3271563aea47928e1e1e",
+    "sales.csv": "ace2653c736f81bd58deb1d00fec0ca9eb2a77916aa45d812fbc960478bd0c42",
+    "user_behavior.jsonl": "f0057e728925c091376ce9e2e7d24021085630aaebbc00b9cc71fa6635e1fbf1"
+  },
+  "metrics": {
+    "total_case_count": 36,
+    "v01_representable_case_count": 18,
+    "offline_capability_completion_rate": 0.5,
+    "deterministic_execution_success_rate": 1.0,
+    "stable_evidence_id_reference_rate": 0.0,
+    "planner_success_rate": null,
+    "end_to_end_success_rate": null,
+    "model_metrics_note": "Planner and end-to-end rates require an explicitly enabled live run."
+  },
+  "results": [
+    {
+      "case_id": "BASIC-01",
+      "status": "unsupported",
+      "reason": "The complete request is not representable by one v0.1 analysis operation."
+    },
+    {
+      "case_id": "BASIC-02",
+      "status": "ok",
+      "operation": "describe",
+      "evidence_records": [
+        {
+          "column": "profit",
+          "count": 17,
+          "missing": 1,
+          "unique": 12,
+          "mean": 465.88235294117646,
+          "median": 400.0,
+          "min": -900.0,
+          "max": 1350.0,
+          "std": 508.58945653062614
+        }
+      ],
+      "evidence_warnings": []
+    },
+    {
+      "case_id": "BASIC-03",
+      "status": "unsupported",
+      "reason": "The complete request is not representable by one v0.1 analysis operation."
+    },
+    {
+      "case_id": "BASIC-04",
+      "status": "ok",
+      "operation": "describe",
+      "evidence_records": [
+        {
+          "column": "avg_wait_minutes",
+          "count": 15,
+          "missing": 1,
+          "unique": 11,
+          "mean": 9.0,
+          "median": 8.5,
+          "min": 5.5,
+          "max": 15.0,
+          "std": 2.8908723349782948
+        }
+      ],
+      "evidence_warnings": []
+    },
+    {
+      "case_id": "BASIC-05",
+      "status": "unsupported",
+      "reason": "The complete request is not representable by one v0.1 analysis operation."
+    },
+    {
+      "case_id": "BASIC-06",
+      "status": "ok",
+      "operation": "missing_values",
+      "evidence_records": [
+        {
+          "column": "amount",
+          "missing_count": 1,
+          "missing_rate": 0.08333333333333333
+        }
+      ],
+      "evidence_warnings": []
+    },
+    {
+      "case_id": "COMPOSITE-01",
+      "status": "unsupported",
+      "reason": "The complete request is not representable by one v0.1 analysis operation."
+    },
+    {
+      "case_id": "COMPOSITE-02",
+      "status": "unsupported",
+      "reason": "The complete request is not representable by one v0.1 analysis operation."
+    },
+    {
+      "case_id": "COMPOSITE-03",
+      "status": "unsupported",
+      "reason": "The complete request is not representable by one v0.1 analysis operation."
+    },
+    {
+      "case_id": "COMPOSITE-04",
+      "status": "unsupported",
+      "reason": "The complete request is not representable by one v0.1 analysis operation."
+    },
+    {
+      "case_id": "COMPOSITE-05",
+      "status": "unsupported",
+      "reason": "The complete request is not representable by one v0.1 analysis operation."
+    },
+    {
+      "case_id": "COMPOSITE-06",
+      "status": "unsupported",
+      "reason": "The complete request is not representable by one v0.1 analysis operation."
+    },
+    {
+      "case_id": "TREND-01",
+      "status": "ok",
+      "operation": "time_trend",
+      "evidence_records": [
+        {"date": "2025-01", "revenue": 2100.0},
+        {"date": "2025-02", "revenue": 2300.0},
+        {"date": "2025-03", "revenue": 3100.0},
+        {"date": "2025-04", "revenue": 2400.0},
+        {"date": "2025-05", "revenue": 3400.0},
+        {"date": "2025-06", "revenue": 2000.0},
+        {"date": "2025-07", "revenue": 2950.0},
+        {"date": "2025-08", "revenue": 1900.0},
+        {"date": "2025-09", "revenue": 2100.0}
+      ],
+      "evidence_warnings": []
+    },
+    {
+      "case_id": "TREND-02",
+      "status": "ok",
+      "operation": "time_trend",
+      "evidence_records": [
+        {"date": "2025-01", "profit": 1000.0},
+        {"date": "2025-02", "profit": 700.0},
+        {"date": "2025-03", "profit": 1550.0},
+        {"date": "2025-04", "profit": 750.0},
+        {"date": "2025-05", "profit": 1750.0},
+        {"date": "2025-06", "profit": -680.0},
+        {"date": "2025-07", "profit": 1000.0},
+        {"date": "2025-08", "profit": 500.0},
+        {"date": "2025-09", "profit": 1350.0}
+      ],
+      "evidence_warnings": []
+    },
+    {
+      "case_id": "TREND-03",
+      "status": "ok",
+      "operation": "time_trend",
+      "evidence_records": [
+        {"date": "2025-01", "tickets": 370},
+        {"date": "2025-02", "tickets": 400},
+        {"date": "2025-03", "tickets": 425},
+        {"date": "2025-04", "tickets": 450}
+      ],
+      "evidence_warnings": []
+    },
+    {
+      "case_id": "TREND-04",
+      "status": "ok",
+      "operation": "time_trend",
+      "evidence_records": [
+        {"date": "2025-01", "avg_wait_minutes": 10.625},
+        {"date": "2025-02", "avg_wait_minutes": 9.375},
+        {"date": "2025-03", "avg_wait_minutes": 8.625},
+        {"date": "2025-04", "avg_wait_minutes": 6.833333333333333}
+      ],
+      "evidence_warnings": []
+    },
+    {
+      "case_id": "TREND-05",
+      "status": "ok",
+      "operation": "time_trend",
+      "evidence_records": [
+        {"date": "2025-01", "sessions": 10},
+        {"date": "2025-02", "sessions": 13},
+        {"date": "2025-03", "sessions": 14},
+        {"date": "2025-04", "sessions": 21},
+        {"date": "2025-05", "sessions": 15}
+      ],
+      "evidence_warnings": []
+    },
+    {
+      "case_id": "TREND-06",
+      "status": "ok",
+      "operation": "time_trend",
+      "evidence_records": [
+        {"date": "2025-01", "conversions": 2.0},
+        {"date": "2025-02", "conversions": 2.0},
+        {"date": "2025-03", "conversions": 3.0},
+        {"date": "2025-04", "conversions": 6.0},
+        {"date": "2025-05", "conversions": 2.0}
+      ],
+      "evidence_warnings": []
+    },
+    {
+      "case_id": "ANOMALY-01",
+      "status": "ok",
+      "operation": "outlier_iqr",
+      "evidence_records": [
+        {
+          "column": "profit",
+          "q1": 250.0,
+          "q3": 600.0,
+          "lower_bound": -275.0,
+          "upper_bound": 1125.0,
+          "outlier_count": 4,
+          "outlier_values": [1300.0, 1150.0, -900.0, 1350.0]
+        }
+      ],
+      "evidence_warnings": []
+    },
+    {
+      "case_id": "ANOMALY-02",
+      "status": "ok",
+      "operation": "top_k",
+      "evidence_records": [{"order_id": "S017", "revenue": 2100.0}],
+      "evidence_warnings": ["Result records were truncated to the configured limit."]
+    },
+    {
+      "case_id": "ANOMALY-03",
+      "status": "ok",
+      "operation": "top_k",
+      "evidence_records": [{"record_id": "O004", "downtime_minutes": 30}],
+      "evidence_warnings": ["Result records were truncated to the configured limit."]
+    },
+    {
+      "case_id": "ANOMALY-04",
+      "status": "ok",
+      "operation": "outlier_iqr",
+      "evidence_records": [
+        {
+          "column": "avg_wait_minutes",
+          "q1": 6.75,
+          "q3": 11.25,
+          "lower_bound": 0.0,
+          "upper_bound": 18.0,
+          "outlier_count": 0,
+          "outlier_values": []
+        }
+      ],
+      "evidence_warnings": []
+    },
+    {
+      "case_id": "ANOMALY-05",
+      "status": "ok",
+      "operation": "top_k",
+      "evidence_records": [{"event_id": "E012", "duration_minutes": 55}],
+      "evidence_warnings": ["Result records were truncated to the configured limit."]
+    },
+    {
+      "case_id": "ANOMALY-06",
+      "status": "ok",
+      "operation": "outlier_iqr",
+      "evidence_records": [
+        {
+          "column": "score",
+          "q1": 74.0,
+          "q3": 90.5,
+          "lower_bound": 49.25,
+          "upper_bound": 115.25,
+          "outlier_count": 1,
+          "outlier_values": [0.0]
+        }
+      ],
+      "evidence_warnings": []
+    },
+    {
+      "case_id": "QUALITY-01",
+      "status": "ok",
+      "operation": "missing_values",
+      "evidence_records": [
+        {"column": "revenue", "missing_count": 1, "missing_rate": 0.05555555555555555},
+        {"column": "profit", "missing_count": 1, "missing_rate": 0.05555555555555555}
+      ],
+      "evidence_warnings": []
+    },
+    {
+      "case_id": "QUALITY-02",
+      "status": "unsupported",
+      "reason": "The complete request is not representable by one v0.1 analysis operation."
+    },
+    {
+      "case_id": "QUALITY-03",
+      "status": "ok",
+      "operation": "missing_values",
+      "evidence_records": [
+        {"column": "avg_wait_minutes", "missing_count": 1, "missing_rate": 0.0625}
+      ],
+      "evidence_warnings": []
+    },
+    {
+      "case_id": "QUALITY-04",
+      "status": "ok",
+      "operation": "missing_values",
+      "evidence_records": [
+        {"column": "conversions", "missing_count": 1, "missing_rate": 0.06666666666666667}
+      ],
+      "evidence_warnings": []
+    },
+    {
+      "case_id": "QUALITY-05",
+      "status": "unsupported",
+      "reason": "The complete request is not representable by one v0.1 analysis operation."
+    },
+    {
+      "case_id": "QUALITY-06",
+      "status": "unsupported",
+      "reason": "The complete request is not representable by one v0.1 analysis operation."
+    },
+    {
+      "case_id": "VISUAL-01",
+      "status": "unsupported",
+      "reason": "The complete request is not representable by one v0.1 analysis operation."
+    },
+    {
+      "case_id": "VISUAL-02",
+      "status": "unsupported",
+      "reason": "The complete request is not representable by one v0.1 analysis operation."
+    },
+    {
+      "case_id": "VISUAL-03",
+      "status": "unsupported",
+      "reason": "The complete request is not representable by one v0.1 analysis operation."
+    },
+    {
+      "case_id": "VISUAL-04",
+      "status": "unsupported",
+      "reason": "The complete request is not representable by one v0.1 analysis operation."
+    },
+    {
+      "case_id": "VISUAL-05",
+      "status": "unsupported",
+      "reason": "The complete request is not representable by one v0.1 analysis operation."
+    },
+    {
+      "case_id": "VISUAL-06",
+      "status": "unsupported",
+      "reason": "The complete request is not representable by one v0.1 analysis operation."
+    }
+  ]
+}

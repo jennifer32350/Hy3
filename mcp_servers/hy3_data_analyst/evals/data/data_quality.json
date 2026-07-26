@@ -1,0 +1,14 @@
+[
+  {"record_id":"Q001","event_date":"2025-01-05","region":"North","amount":"120.50","score":88,"status":"valid","source":"batch-a"},
+  {"record_id":"Q002","event_date":"2025-01-06","region":"South","amount":"95.00","score":91,"status":"valid","source":"batch-a"},
+  {"record_id":"Q003","event_date":"not-a-date","region":"East","amount":"bad","score":null,"status":"review","source":"batch-a"},
+  {"record_id":"Q004","event_date":"2025-01-08","region":null,"amount":"75.25","score":72,"status":"valid","source":"batch-b"},
+  {"record_id":"Q005","event_date":"2025-01-09","region":"West","amount":null,"score":65,"status":"review","source":"batch-b"},
+  {"record_id":"Q006","event_date":"2025-02-01","region":"North","amount":"180.00","score":95,"status":"valid","source":"batch-b"},
+  {"record_id":"Q007","event_date":"2025-02-02","region":"South","amount":"0","score":0,"status":"valid","source":"batch-c"},
+  {"record_id":"Q008","event_date":"2025-02-03","region":"East","amount":"210.75","score":99,"status":"valid","source":"batch-c"},
+  {"record_id":"Q009","event_date":null,"region":"West","amount":"130.00","score":84,"status":"review","source":"batch-c"},
+  {"record_id":"Q009","event_date":null,"region":"West","amount":"130.00","score":84,"status":"review","source":"batch-c"},
+  {"record_id":"Q010","event_date":"2025-02-05","region":"North","amount":"160.25","score":90,"status":null,"source":"batch-d"},
+  {"record_id":"Q011","event_date":"2025-02-06","region":"South","amount":"105.00","score":76,"status":"valid","source":"constant"}
+]
