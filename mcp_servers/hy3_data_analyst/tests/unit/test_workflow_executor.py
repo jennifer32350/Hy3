@@ -429,7 +429,7 @@ def test_existing_operations_run_inside_workflows(
     assert expected_key in item.records[0]
 
 
-def test_phase_e_operation_is_rejected_during_phase_c(
+def test_phase_e_operation_is_rejected_during_phase_d(
     frame: pd.DataFrame, dataset_schema: DatasetSchema
 ) -> None:
     workflow = _workflow([_step("S01", "distribution", {"target_columns": ["revenue"]})])

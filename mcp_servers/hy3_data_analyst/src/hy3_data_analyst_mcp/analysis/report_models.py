@@ -23,7 +23,7 @@ class DataScope(_StrictModel):
     source_rows: int = Field(ge=0)
     used_rows: int = Field(ge=0)
     excluded_rows: int = Field(ge=0)
-    referenced_columns: list[ColumnName] = Field(default_factory=list, max_length=20)
+    referenced_columns: list[ColumnName] = Field(default_factory=list, max_length=25)
     filters_applied: list[BoundedText] = Field(default_factory=list, max_length=20)
     time_grain: Literal["day", "week", "month", "quarter", "year"] | None = None
     notes: list[BoundedText] = Field(default_factory=list, max_length=20)

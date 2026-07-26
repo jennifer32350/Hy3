@@ -15,7 +15,12 @@
   `contains` uses `regex=False`, and empty dependent Views fail closed with a stable step ID.
 - Every internal View is a DataFrame copy. Evidence serialization limits never alter the full bounded
   DataFrame used for deterministic calculations, and source DataFrames/files are not modified.
-- The Phase C planner gets one repair attempt, is limited to the non-destructive default quality policy,
-  and cannot select Phase E/F operations before those stages are implemented.
+- The planner gets one repair attempt, must copy the caller's exact Phase D QualityPolicy, and cannot
+  select Phase E/F operations before those stages are implemented. The policy runs only on a deep
+  in-memory copy; every drop/coercion is counted and the source remains unchanged.
+- Reports get one bounded repair attempt and then fail closed. Local validators reject unknown Evidence
+  IDs, unsupported numeric claims, causal correlation wording, and unjustified high confidence.
+- Report data scope is reconstructed locally from safe base file names, row accounting, Workflow columns,
+  and audits; model-authored paths and scope values are never trusted.
 - The executor has a fixed operation whitelist and never runs generated Python, Shell, SQL, or expressions.
 - stdio stdout is reserved for JSON-RPC; diagnostics use stderr and omit raw datasets and credentials.

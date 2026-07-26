@@ -17,7 +17,15 @@ against source or an earlier View, and assigns continuous Evidence IDs under per
 serialization budgets. Only bounded Workflow and Ledger data reaches the interpreter. Compatibility
 `plan` and `evidence` fields mirror the explicit primary step.
 
+Phase D adds a deterministic quality boundary before workflow execution. The requested QualityPolicy is
+copied into the validated Workflow, then applied only to an isolated DataFrame copy. Duplicate, missing,
+numeric-conversion, and date-conversion actions are counted in `quality_summary` and propagated into
+Evidence lineage. After execution, Hy3 returns a strict `AnalysisReport`; local validators enforce
+Evidence references, numeric grounding, confidence limits, and correlation non-causality. One report
+repair is allowed without rerunning calculations. Local facts replace model-authored data scope.
+
 ```text
 MCP client -> tool boundary -> secure loader/profile -> Hy3 workflow planner -> static validation
-                              -> deterministic View/Evidence executor -> bounded ledger -> Hy3 explanation
+                              -> quality copy/audit -> deterministic View/Evidence executor
+                              -> bounded ledger -> Hy3 report -> local grounding/repair
 ```

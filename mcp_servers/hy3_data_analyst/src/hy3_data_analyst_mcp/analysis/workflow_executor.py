@@ -1,4 +1,4 @@
-"""Deterministic, whitelist-only execution for v0.2-alpha workflows."""
+"""Deterministic, whitelist-only execution for pre-Phase-E v0.2 workflows."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ from hy3_data_analyst_mcp.analysis.workflow_validator import DatasetSchema
 from hy3_data_analyst_mcp.data.profiler import _json_value
 from hy3_data_analyst_mcp.errors import WorkflowExecutionError
 
-PHASE_C_OPERATIONS = frozenset(
+PHASE_D_OPERATIONS = frozenset(
     {
         "describe",
         "groupby_aggregate",
@@ -101,6 +101,7 @@ def execute_workflow(
     dataset_schema: DatasetSchema | None = None,
     max_records_per_step: int = 100,
     max_records_total: int = 300,
+    quality_actions: tuple[str, ...] = (),
 ) -> WorkflowExecutionResult:
     """Execute a validated workflow without mutating the caller's DataFrame."""
     if not 1 <= max_records_per_step <= 100:
@@ -118,11 +119,11 @@ def execute_workflow(
     for step in workflow.steps:
         step_started = time.monotonic()
         try:
-            if step.operation not in PHASE_C_OPERATIONS:
+            if step.operation not in PHASE_D_OPERATIONS:
                 _fail(
                     step.step_id,
-                    f"Operation {step.operation} is not available in v0.2-alpha Phase C.",
-                    "Use one of the Phase C whitelist operations and retry.",
+                    f"Operation {step.operation} is not available before Phase E.",
+                    "Use one of the Phase D whitelist operations and retry.",
                 )
             input_frame = source if step.input_ref == "source" else views[step.input_ref]
             if input_frame.empty:
@@ -174,7 +175,7 @@ def execute_workflow(
                         source_file_name=source_file_name,
                         input_ref=step.input_ref,
                         referenced_columns=_referenced_columns(step, input_frame),
-                        quality_actions=[],
+                        quality_actions=list(quality_actions),
                     ),
                 )
                 evidence_items.append(item)
@@ -228,8 +229,8 @@ def _execute_evidence_step(frame: pd.DataFrame, step: AnalysisStep) -> _Operatio
         return _outlier_iqr(frame, step)
     _fail(
         step.step_id,
-        f"Operation {step.operation} has no Phase C deterministic handler.",
-        "Use a supported v0.2-alpha operation.",
+        f"Operation {step.operation} has no Phase D deterministic handler.",
+        "Use a supported pre-Phase-E operation.",
     )
 
 

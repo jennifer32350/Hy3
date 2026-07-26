@@ -5,10 +5,11 @@ from typing import Any
 
 import pytest
 
-from hy3_data_analyst_mcp.analysis.models import AnalysisPlan, EvidenceInterpretation
+from hy3_data_analyst_mcp.analysis.models import AnalysisPlan
 from hy3_data_analyst_mcp.analysis.planner import AnalysisPlanner
+from hy3_data_analyst_mcp.analysis.report_models import AnalysisReport
 from hy3_data_analyst_mcp.analysis.service import AnalysisService
-from hy3_data_analyst_mcp.analysis.workflow_models import AnalysisWorkflow
+from hy3_data_analyst_mcp.analysis.workflow_models import AnalysisWorkflow, QualityPolicy
 from hy3_data_analyst_mcp.analysis.workflow_planner import WorkflowPlanner
 from hy3_data_analyst_mcp.config import Settings
 from hy3_data_analyst_mcp.data.loader import load_dataset
@@ -16,6 +17,7 @@ from hy3_data_analyst_mcp.data.profiler import profile_dataset
 from hy3_data_analyst_mcp.errors import (
     Hy3ResponseError,
     InvalidAnalysisPlanError,
+    InvalidAnalysisReportError,
     InvalidAnalysisWorkflowError,
 )
 
@@ -38,14 +40,18 @@ def _profile(settings: Settings, fixture_dir: Path):  # type: ignore[no-untyped-
     return profile_dataset(load_dataset(path, settings=settings), source_path=path)
 
 
-def _workflow(*, invented: bool = False) -> AnalysisWorkflow:
+def _workflow(
+    *,
+    invented: bool = False,
+    policy: dict[str, Any] | None = None,
+) -> AnalysisWorkflow:
     revenue = "invented" if invented else "revenue"
     return AnalysisWorkflow.model_validate(
         {
             "version": "2.0",
             "goal": "Filter and compare regional revenue.",
             "primary_step_id": "S02",
-            "quality_policy": {},
+            "quality_policy": policy or {},
             "steps": [
                 {
                     "step_id": "S01",
@@ -86,13 +92,13 @@ def _workflow(*, invented: bool = False) -> AnalysisWorkflow:
     )
 
 
-def _business_workflow() -> AnalysisWorkflow:
+def _business_workflow(*, policy: dict[str, Any] | None = None) -> AnalysisWorkflow:
     return AnalysisWorkflow.model_validate(
         {
             "version": "2.0",
             "goal": "Compare regional performance, periods, and profit outliers.",
             "primary_step_id": "S01",
-            "quality_policy": {},
+            "quality_policy": policy or {},
             "steps": [
                 {
                     "step_id": "S01",
@@ -144,6 +150,139 @@ def _business_workflow() -> AnalysisWorkflow:
     )
 
 
+def _report(*, evidence_ids: list[str] | None = None) -> AnalysisReport:
+    ids = evidence_ids or ["E01"]
+    return AnalysisReport.model_validate(
+        {
+            "executive_summary": "South revenue is 120 and North revenue is 100.",
+            "findings": [
+                {
+                    "finding_id": "F01",
+                    "kind": "fact",
+                    "title": "Regional revenue",
+                    "statement": "South revenue is 120 and North revenue is 100.",
+                    "evidence_ids": ids,
+                    "confidence": "high",
+                }
+            ],
+            "anomalies": [],
+            "recommendations": [],
+            "data_scope": {
+                "source_file_name": "sales.csv",
+                "source_rows": 2,
+                "used_rows": 2,
+                "excluded_rows": 0,
+                "referenced_columns": ["region", "revenue"],
+                "filters_applied": [],
+                "time_grain": None,
+                "notes": [],
+            },
+            "limitations": [],
+            "warnings": [],
+            "suggested_follow_ups": ["Compare shares."],
+        }
+    )
+
+
+def _business_report() -> AnalysisReport:
+    return AnalysisReport.model_validate(
+        {
+            "executive_summary": "Regional totals, profit outliers, and periods were compared.",
+            "findings": [
+                {
+                    "finding_id": "F01",
+                    "kind": "fact",
+                    "title": "North totals",
+                    "statement": "North revenue is 8,600 and profit is 4,200.",
+                    "evidence_ids": ["E01"],
+                    "confidence": "medium",
+                },
+                {
+                    "finding_id": "F02",
+                    "kind": "fact",
+                    "title": "Period totals",
+                    "statement": "Revenue changed from 15,300 to 6,950.",
+                    "evidence_ids": ["E03"],
+                    "confidence": "medium",
+                },
+            ],
+            "anomalies": [
+                {
+                    "finding_id": "F03",
+                    "kind": "risk",
+                    "title": "Profit outliers",
+                    "statement": "There are 4 profit outliers, including source row 11.",
+                    "evidence_ids": ["E02"],
+                    "confidence": "medium",
+                }
+            ],
+            "recommendations": [],
+            "data_scope": {
+                "source_file_name": "sales.csv",
+                "source_rows": 18,
+                "used_rows": 18,
+                "excluded_rows": 0,
+                "referenced_columns": ["date", "region", "revenue", "profit"],
+                "filters_applied": [],
+                "time_grain": "year",
+                "notes": [],
+            },
+            "limitations": [],
+            "warnings": [],
+            "suggested_follow_ups": ["Review the duplicate row."],
+        }
+    )
+
+
+def _top_workflow() -> AnalysisWorkflow:
+    return AnalysisWorkflow.model_validate(
+        {
+            "version": "2.0",
+            "goal": "Rank revenue records.",
+            "primary_step_id": "S01",
+            "quality_policy": {},
+            "steps": [
+                {
+                    "step_id": "S01",
+                    "operation": "top_k",
+                    "input_ref": "source",
+                    "params": {"target_columns": ["revenue"], "limit": 100},
+                    "purpose": "Rank all bounded revenue records.",
+                }
+            ],
+            "rationale": "Use stable deterministic sorting.",
+        }
+    )
+
+
+def _top_report() -> AnalysisReport:
+    payload = _report().model_dump(mode="json")
+    payload["executive_summary"] = "Revenue records were ranked deterministically."
+    payload["findings"][0].update(
+        title="Revenue ranking",
+        statement="Revenue records were ranked deterministically.",
+        confidence="medium",
+    )
+    return AnalysisReport.model_validate(payload)
+
+
+def _quality_report() -> AnalysisReport:
+    payload = _business_report().model_dump(mode="json")
+    payload["executive_summary"] = "Quality-adjusted regional analysis completed."
+    payload["findings"] = [
+        {
+            "finding_id": "F01",
+            "kind": "fact",
+            "title": "Regional aggregation",
+            "statement": "Regional revenue and profit were aggregated deterministically.",
+            "evidence_ids": ["E01"],
+            "confidence": "medium",
+        }
+    ]
+    payload["anomalies"] = []
+    return AnalysisReport.model_validate(payload)
+
+
 async def test_planner_repairs_invented_column(settings: Settings, fixture_dir: Path) -> None:
     client = StubClient(
         [
@@ -177,6 +316,7 @@ async def test_workflow_planner_repairs_invalid_columns_once(
         _profile(settings, fixture_dir),
         reasoning_effort="high",
         max_steps=3,
+        quality_policy=QualityPolicy(),
     )
 
     assert workflow.steps[1].operation == "multi_aggregate"
@@ -195,22 +335,38 @@ async def test_workflow_planner_fails_after_exactly_one_repair(
             _profile(settings, fixture_dir),
             reasoning_effort="low",
             max_steps=3,
+            quality_policy=QualityPolicy(),
         )
 
     assert len(client.prompts) == 2
 
 
-async def test_analysis_service_passes_evidence_to_interpreter(
+async def test_workflow_planner_repairs_mismatched_requested_quality_policy(
+    settings: Settings,
+    fixture_dir: Path,
+) -> None:
+    requested = QualityPolicy(duplicates="drop")
+    client = StubClient([_workflow(), _workflow(policy={"duplicates": "drop"})])
+
+    workflow = await WorkflowPlanner(client).create_workflow(  # type: ignore[arg-type]
+        "Compare regions",
+        _profile(settings, fixture_dir),
+        reasoning_effort="high",
+        max_steps=3,
+        quality_policy=requested,
+    )
+
+    assert workflow.quality_policy == requested
+    assert len(client.prompts) == 2
+
+
+async def test_analysis_service_passes_evidence_to_reporter(
     settings: Settings, fixture_dir: Path
 ) -> None:
     client = StubClient(
         [
             _workflow(),
-            EvidenceInterpretation(
-                conclusion="North has 100 revenue and South has 120.",
-                evidence_references=["E01", "E02"],
-                limitations=[],
-            ),
+            _report(),
         ]
     )
     result = await AnalysisService(settings, client=client).analyze(  # type: ignore[arg-type]
@@ -220,6 +376,10 @@ async def test_analysis_service_passes_evidence_to_interpreter(
     assert result["plan"]["operation"] == "multi_aggregate"
     assert result["evidence"]["operation"] == "multi_aggregate"
     assert result["workflow"]["primary_step_id"] == "S02"
+    assert result["report"]["executive_summary"] == result["conclusion"]
+    assert result["evidence_references"] == ["E01"]
+    assert result["quality_summary"]["source_modified"] is False
+    assert len(result["evidence_ledger"]["items"][0]["lineage"]["quality_actions"]) == 4
     assert [item["evidence_id"] for item in result["evidence_ledger"]["items"]] == [
         "E01",
         "E02",
@@ -233,21 +393,18 @@ async def test_analysis_service_passes_evidence_to_interpreter(
     assert str(fixture_dir) not in client.prompts[-1]
 
 
-async def test_analysis_service_rejects_interpreter_unknown_evidence_id(
+async def test_analysis_service_repairs_then_rejects_unknown_evidence_id(
     settings: Settings,
 ) -> None:
     client = StubClient(
         [
             _workflow(),
-            EvidenceInterpretation(
-                conclusion="Unsupported claim.",
-                evidence_references=["E99"],
-                limitations=[],
-            ),
+            _report(evidence_ids=["E09"]),
+            _report(evidence_ids=["E09"]),
         ]
     )
 
-    with pytest.raises(Hy3ResponseError, match="invalid Evidence references"):
+    with pytest.raises(InvalidAnalysisReportError, match="grounded report"):
         await AnalysisService(settings, client=client).analyze(  # type: ignore[arg-type]
             "sales.csv", "Compare regional revenue.", reasoning_effort="high", max_steps=3
         )
@@ -261,11 +418,7 @@ async def test_comprehensive_business_analysis_executes_three_exact_steps(
     client = StubClient(
         [
             _business_workflow(),
-            EvidenceInterpretation(
-                conclusion="Regional totals, the profit outlier, and period changes were computed.",
-                evidence_references=["E01", "E02", "E03"],
-                limitations=[],
-            ),
+            _business_report(),
         ]
     )
 
@@ -296,3 +449,70 @@ async def test_comprehensive_business_analysis_executes_three_exact_steps(
     }
     assert periods["revenue"]["period_a_value"] == 15300.0
     assert periods["revenue"]["period_b_value"] == 6950.0
+    assert result["quality_summary"]["duplicate_rows_found"] == 1
+    assert result["quality_summary"]["referenced_rows_with_missing"] == 1
+    assert any("duplicate" in warning for warning in result["report"]["warnings"])
+
+
+async def test_analysis_service_applies_requested_policy_without_modifying_source(
+    fixture_dir: Path,
+) -> None:
+    eval_data_dir = fixture_dir.parent.parent / "evals" / "data"
+    source_path = eval_data_dir / "sales.csv"
+    original_bytes = source_path.read_bytes()
+    settings = Settings(data_dir=eval_data_dir)
+    policy = QualityPolicy(duplicates="drop")
+    client = StubClient(
+        [
+            _business_workflow(policy={"duplicates": "drop"}),
+            _quality_report(),
+        ]
+    )
+
+    result = await AnalysisService(settings, client=client).analyze(  # type: ignore[arg-type]
+        "sales.csv",
+        "Run a quality-adjusted analysis.",
+        reasoning_effort="high",
+        quality_policy=policy,
+    )
+
+    summary = result["quality_summary"]
+    assert summary["source_rows"] == 18
+    assert summary["analysis_base_rows"] == 17
+    assert summary["duplicate_rows_removed"] == 1
+    assert summary["source_modified"] is False
+    assert result["evidence_ledger"]["items"][0]["source_rows"] == 17
+    assert source_path.read_bytes() == original_bytes
+
+
+async def test_concise_mode_limits_presentation_without_changing_calculation(
+    fixture_dir: Path,
+) -> None:
+    eval_data_dir = fixture_dir.parent.parent / "evals" / "data"
+    settings = Settings(data_dir=eval_data_dir)
+    detailed = await AnalysisService(
+        settings,
+        client=StubClient([_top_workflow(), _top_report()]),  # type: ignore[arg-type]
+    ).analyze(
+        "sales.csv",
+        "Rank revenue records.",
+        reasoning_effort="high",
+        output_mode="detailed",
+    )
+    concise = await AnalysisService(
+        settings,
+        client=StubClient([_top_workflow(), _top_report()]),  # type: ignore[arg-type]
+    ).analyze(
+        "sales.csv",
+        "Rank revenue records.",
+        reasoning_effort="high",
+        output_mode="concise",
+    )
+
+    detailed_item = detailed["evidence_ledger"]["items"][0]
+    concise_item = concise["evidence_ledger"]["items"][0]
+    assert len(detailed_item["records"]) == 18
+    assert len(concise_item["records"]) == 5
+    assert concise_item["truncated"] is True
+    assert concise_item["metrics"] == detailed_item["metrics"]
+    assert concise["report"] == detailed["report"]

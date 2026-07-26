@@ -1,21 +1,21 @@
 """End-to-end orchestration for Hy3-planned deterministic workflows."""
 
-import json
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
-from hy3_data_analyst_mcp.analysis.models import EvidenceInterpretation
-from hy3_data_analyst_mcp.analysis.prompts import INTERPRETER_SYSTEM_PROMPT
+from hy3_data_analyst_mcp.analysis.evidence import EvidenceLedger
+from hy3_data_analyst_mcp.analysis.quality import prepare_analysis_data
+from hy3_data_analyst_mcp.analysis.report_models import AnalysisReport
+from hy3_data_analyst_mcp.analysis.report_service import ReportService
 from hy3_data_analyst_mcp.analysis.workflow_executor import execute_workflow
-from hy3_data_analyst_mcp.analysis.workflow_models import AnalysisStep
+from hy3_data_analyst_mcp.analysis.workflow_models import AnalysisStep, QualityPolicy
 from hy3_data_analyst_mcp.analysis.workflow_planner import WorkflowPlanner
 from hy3_data_analyst_mcp.analysis.workflow_validator import DatasetSchema
 from hy3_data_analyst_mcp.config import Settings
 from hy3_data_analyst_mcp.data.loader import load_dataset
 from hy3_data_analyst_mcp.data.profiler import profile_dataset
 from hy3_data_analyst_mcp.data.security import resolve_data_file
-from hy3_data_analyst_mcp.errors import Hy3ResponseError
 from hy3_data_analyst_mcp.hy3_client import Hy3Client
 
 
@@ -33,6 +33,8 @@ class AnalysisService:
         *,
         reasoning_effort: str,
         max_steps: int = 6,
+        output_mode: Literal["concise", "detailed"] = "detailed",
+        quality_policy: QualityPolicy | None = None,
     ) -> dict[str, Any]:
         started = time.monotonic()
         source_path = resolve_data_file(
@@ -43,61 +45,57 @@ class AnalysisService:
         frame = load_dataset(file_path, settings=self._settings)
         profile = profile_dataset(frame, source_path=source_path, sample_rows=3)
         effective_max_steps = min(max_steps, self._settings.max_workflow_steps)
+        requested_quality_policy = quality_policy or QualityPolicy()
         workflow = await WorkflowPlanner(self._client).create_workflow(
             question,
             profile,
             reasoning_effort=reasoning_effort,
             max_steps=effective_max_steps,
+            quality_policy=requested_quality_policy,
         )
+        source_schema = DatasetSchema.from_profile(profile)
+        prepared = prepare_analysis_data(frame, workflow, source_schema)
         execution = execute_workflow(
-            frame,
+            prepared.frame,
             workflow,
             source_file_name=source_path.name,
-            dataset_schema=DatasetSchema.from_profile(profile),
+            dataset_schema=prepared.dataset_schema,
             max_records_per_step=self._settings.max_evidence_records_per_step,
             max_records_total=self._settings.max_evidence_records_total,
+            quality_actions=prepared.quality_actions,
         )
         ledger = execution.evidence_ledger
-        interpretation = await self._client.complete_structured(
-            system_prompt=INTERPRETER_SYSTEM_PROMPT,
-            user_prompt=json.dumps(
-                {
-                    "question": question,
-                    "workflow": workflow.model_dump(mode="json"),
-                    "evidence_ledger": ledger.model_dump(mode="json"),
-                },
-                ensure_ascii=False,
-                default=str,
-            ),
-            response_model=EvidenceInterpretation,
+        report = await ReportService(self._client).create_report(
+            question,
+            workflow,
+            ledger,
+            prepared.summary,
+            execution.step_audits,
             reasoning_effort=reasoning_effort,
         )
-        known_evidence_ids = {item.evidence_id for item in ledger.items}
-        if (
-            not interpretation.evidence_references
-            or not set(interpretation.evidence_references) <= known_evidence_ids
-        ):
-            raise Hy3ResponseError(
-                "Hy3 returned an explanation with invalid Evidence references.",
-                "Retry the analysis so the explanation cites only this workflow's Evidence IDs.",
-            )
+        serialized_ledger = _serialize_ledger(ledger, output_mode=output_mode)
         primary_step = next(
             step for step in workflow.steps if step.step_id == workflow.primary_step_id
         )
         primary_evidence = next(
-            item for item in ledger.items if item.step_id == workflow.primary_step_id
+            item
+            for item in serialized_ledger["items"]
+            if item["step_id"] == workflow.primary_step_id
         )
+        evidence_references = _report_evidence_references(report)
         return {
             "status": "ok",
             "plan": _compatibility_plan(primary_step),
-            "evidence": _compatibility_evidence(primary_evidence.model_dump(mode="json")),
-            "conclusion": interpretation.conclusion,
-            "evidence_references": interpretation.evidence_references,
-            "limitations": interpretation.limitations,
-            "warnings": [warning for item in ledger.items for warning in item.warnings],
+            "evidence": _compatibility_evidence(primary_evidence),
+            "conclusion": report.executive_summary,
+            "evidence_references": evidence_references,
+            "limitations": report.limitations,
+            "warnings": report.warnings,
             "elapsed_ms": round((time.monotonic() - started) * 1000, 2),
             "workflow": workflow.model_dump(mode="json"),
-            "evidence_ledger": ledger.model_dump(mode="json"),
+            "evidence_ledger": serialized_ledger,
+            "report": report.model_dump(mode="json"),
+            "quality_summary": prepared.summary.model_dump(mode="json"),
             "step_audits": [audit.model_dump(mode="json") for audit in execution.step_audits],
             "step_timings_ms": execution.step_timings_ms,
         }
@@ -131,3 +129,37 @@ def _compatibility_evidence(item: dict[str, Any]) -> dict[str, Any]:
         "metrics": item["metrics"],
         "warnings": item["warnings"],
     }
+
+
+def _serialize_ledger(
+    ledger: EvidenceLedger,
+    *,
+    output_mode: Literal["concise", "detailed"],
+) -> dict[str, Any]:
+    payload = ledger.model_dump(mode="json")
+    if output_mode == "detailed":
+        return payload
+    for item in payload["items"]:
+        if len(item["records"]) > 5:
+            item["records"] = item["records"][:5]
+            item["truncated"] = True
+            item["warnings"] = list(
+                dict.fromkeys(
+                    [
+                        *item["warnings"],
+                        "Concise output limited this Evidence item to 5 records.",
+                    ]
+                )
+            )[:20]
+    return payload
+
+
+def _report_evidence_references(report: AnalysisReport) -> list[str]:
+    ordered: dict[str, None] = {}
+    for finding in [*report.findings, *report.anomalies]:
+        for evidence_id in finding.evidence_ids:
+            ordered.setdefault(evidence_id, None)
+    for recommendation in report.recommendations:
+        for evidence_id in recommendation.basis_evidence_ids:
+            ordered.setdefault(evidence_id, None)
+    return list(ordered)

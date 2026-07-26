@@ -24,8 +24,12 @@ v0.1 的离线确定性结果。评测包含 49 个精确数值断言，不调�
 Workflow。Planner 生成 1～6 个步骤且最多修复一次，`analyze_dataset` 返回 Workflow、Ledger、
 View 审计和分步耗时，同时保留由 `primary_step_id` 指定的兼容 `plan`/`evidence` 字段。
 
-阶段 C 实现与边界见 [v0.2 多步骤执行器](docs/workflow-execution-v0.2.md)。阶段 D 及后续质量
-策略执行、可信报告、补充操作和图表功能尚未开始。
+阶段 C 实现与边界见 [v0.2 多步骤执行器](docs/workflow-execution-v0.2.md)。阶段 D（质量策略和
+可信报告）也已完成：质量处理只作用于内存副本，所有删除/转换均进入审计；结构化报告执行
+Evidence 引用、数值 Grounding、相关性非因果和置信度校验，失败最多 Repair 一次。
+
+阶段 D 详情见 [v0.2 质量策略与可信报告](docs/quality-reporting-v0.2.md)。阶段 E 的补充操作和
+阶段 F 的图表功能尚未开始。
 
 ## 当前已经具备的能力
 
@@ -52,6 +56,9 @@ View 审计和分步耗时，同时保留由 `primary_step_id` 指定的兼容 `
 - 单次分析可执行最多 6 个有序步骤，Filter View 不修改原始数据，Evidence 使用连续 ID。
 - 支持结构化安全筛选、多指标分组聚合、类别频数/占比和期间对比/变化率。
 - 每步最多序列化 100 条、整个工作流最多 300 条 Evidence records；截断不改变内部计算。
+- 支持显式缺失值、重复值、数值转换和日期转换策略，并返回完整 `quality_summary`。
+- 返回带 Evidence ID 的结构化可信报告；所有数值主张由本地 Grounding Validator 校验。
+- `concise` 模式每步最多展示 5 条 records，`detailed` 保留完整受限 Ledger，计算结果一致。
 
 Server 当前会公开以下三个工具：
 
@@ -146,10 +153,12 @@ HY3_MAX_EVIDENCE_RECORDS_TOTAL
 最近一次验证在 Windows、Python 3.13.2 环境中完成：
 
 ```text
-Pytest（离线）：                  175 passed，1 skipped
-项目总覆盖率：                   89%
+Pytest（离线）：                  196 passed，1 skipped
+项目总覆盖率：                   90%
 workflow_validator.py 覆盖率：   98%
 workflow_executor.py 覆盖率：    86%
+quality.py 覆盖率：              93%
+report_service.py 覆盖率：       93%
 Ruff 格式检查：          通过
 Ruff 代码检查：          通过
 Mypy 严格类型检查：      通过
@@ -157,7 +166,7 @@ git diff --check：       通过
 ```
 
 跳过项是 Windows 符号链接安全测试：当前 Windows 环境不允许创建符号链接；在允许创建
-符号链接的环境中，该测试仍可执行。真实 TokenHub 调用不属于阶段 B，未在本轮质量门禁中
+符号链接的环境中，该测试仍可执行。真实 TokenHub 调用不属于阶段 D，未在本轮质量门禁中
 启用。
 
 仓库中自带的 `uv.exe` 也已经成功执行离线测试。当前运行环境的默认 uv 缓存目录没有写入
@@ -233,6 +242,6 @@ content。真实 `analyze_dataset` 随后成功完成分组计划、4 条本地 
 
 ## 下一阶段
 
-按 v0.2 技术规格，下一阶段是阶段 D：实现质量策略执行、完整审计、可信结构化报告、
-Interpreter Repair、数值 Grounding 和 concise/detailed 输出模式。本轮严格停在阶段 C；未经
-明确授权不会进入阶段 D，也不会提交、推送或创建 PR。
+按 v0.2 技术规格，下一阶段是阶段 E：实现 `distribution`、`pivot_table` 和
+`derived_metric` 及对应失败路径。本轮严格停在阶段 D；未经明确授权不会进入阶段 E，也不会
+提交、推送或创建 PR。

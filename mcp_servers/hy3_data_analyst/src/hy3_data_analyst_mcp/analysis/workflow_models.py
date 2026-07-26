@@ -65,7 +65,7 @@ def _require_unique(values: list[str], label: str) -> None:
 
 
 class QualityPolicy(StrictSchemaModel):
-    """Declared data-quality behavior; execution is implemented in a later phase."""
+    """Declared Phase D data-quality behavior executed on an isolated in-memory copy."""
 
     missing: Literal["keep", "drop_referenced", "error"] = "keep"
     duplicates: Literal["keep", "drop", "error"] = "keep"

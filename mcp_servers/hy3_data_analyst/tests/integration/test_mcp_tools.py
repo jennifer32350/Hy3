@@ -49,8 +49,14 @@ async def test_analyze_dataset_rejects_out_of_bounds_workflow_size(max_steps: in
     assert "between 1 and 6" in result["message"]
 
 
-async def test_analyze_dataset_schema_exposes_optional_max_steps() -> None:
+async def test_analyze_dataset_schema_exposes_phase_d_options() -> None:
     tools = await mcp.list_tools()
     schema = next(tool.inputSchema for tool in tools if tool.name == "analyze_dataset")
 
     assert schema["properties"]["max_steps"]["default"] == 6
+    assert schema["properties"]["output_mode"]["default"] == "detailed"
+    assert schema["properties"]["output_mode"]["enum"] == ["concise", "detailed"]
+    quality_schema = schema["$defs"]["QualityPolicy"]
+    assert quality_schema["additionalProperties"] is False
+    assert quality_schema["properties"]["missing"]["default"] == "keep"
+    assert quality_schema["properties"]["duplicates"]["default"] == "keep"

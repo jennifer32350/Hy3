@@ -8,7 +8,7 @@ from hy3_data_analyst_mcp.analysis.prompts import (
     WORKFLOW_PLANNER_SYSTEM_PROMPT,
     WORKFLOW_REPAIR_SYSTEM_PROMPT,
 )
-from hy3_data_analyst_mcp.analysis.workflow_models import AnalysisWorkflow
+from hy3_data_analyst_mcp.analysis.workflow_models import AnalysisWorkflow, QualityPolicy
 from hy3_data_analyst_mcp.analysis.workflow_validator import DatasetSchema, validate_workflow
 from hy3_data_analyst_mcp.errors import (
     Hy3ResponseError,
@@ -17,7 +17,7 @@ from hy3_data_analyst_mcp.errors import (
 from hy3_data_analyst_mcp.hy3_client import Hy3Client
 from hy3_data_analyst_mcp.models import DatasetProfile
 
-PHASE_C_ALLOWED_OPERATIONS = [
+PHASE_D_ALLOWED_OPERATIONS = [
     "describe",
     "groupby_aggregate",
     "multi_aggregate",
@@ -45,8 +45,14 @@ class WorkflowPlanner:
         *,
         reasoning_effort: str,
         max_steps: int,
+        quality_policy: QualityPolicy,
     ) -> AnalysisWorkflow:
-        context = _planning_context(question, profile, max_steps=max_steps)
+        context = _planning_context(
+            question,
+            profile,
+            max_steps=max_steps,
+            quality_policy=quality_policy,
+        )
         dataset = DatasetSchema.from_profile(profile)
         try:
             workflow = await self._client.complete_structured(
@@ -55,7 +61,12 @@ class WorkflowPlanner:
                 response_model=AnalysisWorkflow,
                 reasoning_effort=reasoning_effort,
             )
-            _validate_phase_c_workflow(workflow, dataset, max_steps=max_steps)
+            _validate_phase_d_workflow(
+                workflow,
+                dataset,
+                max_steps=max_steps,
+                quality_policy=quality_policy,
+            )
             return workflow
         except (Hy3ResponseError, InvalidAnalysisWorkflowError, ValueError) as first_error:
             try:
@@ -71,7 +82,12 @@ class WorkflowPlanner:
                     response_model=AnalysisWorkflow,
                     reasoning_effort=reasoning_effort,
                 )
-                _validate_phase_c_workflow(repaired, dataset, max_steps=max_steps)
+                _validate_phase_d_workflow(
+                    repaired,
+                    dataset,
+                    max_steps=max_steps,
+                    quality_policy=quality_policy,
+                )
                 return repaired
             except (Hy3ResponseError, InvalidAnalysisWorkflowError, ValueError) as exc:
                 raise InvalidAnalysisWorkflowError(
@@ -81,37 +97,38 @@ class WorkflowPlanner:
                 ) from exc
 
 
-def _validate_phase_c_workflow(
+def _validate_phase_d_workflow(
     workflow: AnalysisWorkflow,
     dataset: DatasetSchema,
     *,
     max_steps: int,
+    quality_policy: QualityPolicy,
 ) -> None:
     unsupported = [
-        step for step in workflow.steps if step.operation not in PHASE_C_ALLOWED_OPERATIONS
+        step for step in workflow.steps if step.operation not in PHASE_D_ALLOWED_OPERATIONS
     ]
     if unsupported:
         step = unsupported[0]
         raise InvalidAnalysisWorkflowError(
-            f"Operation {step.operation} is not available in v0.2-alpha Phase C.",
-            "Use an operation from the Phase C whitelist.",
+            f"Operation {step.operation} is not available before Phase E.",
+            "Use an operation from the Phase D whitelist.",
             step_id=step.step_id,
         )
-    if workflow.quality_policy.model_dump() != {
-        "missing": "keep",
-        "duplicates": "keep",
-        "numeric_conversion": "strict",
-        "date_conversion": "coerce",
-    }:
+    if workflow.quality_policy != quality_policy:
         raise InvalidAnalysisWorkflowError(
-            "Phase C supports only the non-destructive default quality policy.",
-            "Use missing=keep, duplicates=keep, numeric_conversion=strict, and "
-            "date_conversion=coerce.",
+            "The workflow quality policy does not match the requested policy.",
+            "Copy requested_quality_policy exactly and retry.",
         )
     validate_workflow(workflow, dataset, max_steps=max_steps)
 
 
-def _planning_context(question: str, profile: DatasetProfile, *, max_steps: int) -> str:
+def _planning_context(
+    question: str,
+    profile: DatasetProfile,
+    *,
+    max_steps: int,
+    quality_policy: QualityPolicy,
+) -> str:
     columns = [
         {
             "name": column.name,
@@ -127,7 +144,8 @@ def _planning_context(question: str, profile: DatasetProfile, *, max_steps: int)
         {
             "question": question,
             "max_steps": max_steps,
-            "allowed_operations": PHASE_C_ALLOWED_OPERATIONS,
+            "allowed_operations": PHASE_D_ALLOWED_OPERATIONS,
+            "requested_quality_policy": quality_policy.model_dump(mode="json"),
             "row_count": profile.row_count,
             "column_count": profile.column_count,
             "duplicate_row_count": profile.duplicate_row_count,

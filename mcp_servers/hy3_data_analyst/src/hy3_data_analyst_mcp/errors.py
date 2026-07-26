@@ -90,6 +90,30 @@ class WorkflowExecutionError(InvalidAnalysisWorkflowError):
         return payload
 
 
+class DataQualityPolicyError(Hy3DataAnalystError):
+    """An explicit data-quality policy rejected or exhausted the analysis data."""
+
+
+class InvalidAnalysisReportError(Hy3DataAnalystError):
+    """Hy3 could not produce a fully grounded structured report."""
+
+    def __init__(
+        self,
+        message: str,
+        hint: str,
+        *,
+        evidence_ledger: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message, hint)
+        self.evidence_ledger = evidence_ledger
+
+    def as_dict(self) -> dict[str, Any]:
+        payload = super().as_dict()
+        if self.evidence_ledger is not None:
+            payload["evidence_ledger"] = self.evidence_ledger
+        return payload
+
+
 class UnsupportedAnalysisOperationError(Hy3DataAnalystError):
     """An analysis plan requested a non-whitelisted operation."""
 
