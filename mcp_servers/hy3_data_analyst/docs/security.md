@@ -7,5 +7,9 @@
   leave the machine. Complete files are not sent by default.
 - Cell text is untrusted data. Prompts explicitly forbid following instructions contained in data.
 - Hy3 output is constrained by Pydantic schemas and exact column validation.
+- v0.2 workflow schemas reject extra fields, undeclared operations, forward or non-View dependencies,
+  unsafe filter/derived shapes, invented columns, incompatible strict types, and resource-limit overruns.
+- Evidence and report schemas accept base file names only and enforce bounded records, JSON nesting,
+  stable IDs, row accounting, and Evidence references.
 - The executor has a fixed operation whitelist and never runs generated Python, Shell, SQL, or expressions.
 - stdio stdout is reserved for JSON-RPC; diagnostics use stderr and omit raw datasets and credentials.

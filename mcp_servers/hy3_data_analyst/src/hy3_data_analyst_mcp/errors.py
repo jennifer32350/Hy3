@@ -51,6 +51,20 @@ class InvalidAnalysisPlanError(Hy3DataAnalystError):
     """Hy3 returned an invalid constrained analysis plan."""
 
 
+class InvalidAnalysisWorkflowError(Hy3DataAnalystError):
+    """A v0.2 workflow failed safe static validation."""
+
+    def __init__(self, message: str, hint: str, *, step_id: str | None = None) -> None:
+        super().__init__(message, hint)
+        self.step_id = step_id
+
+    def as_dict(self) -> dict[str, Any]:
+        payload = super().as_dict()
+        if self.step_id is not None:
+            payload["step_id"] = self.step_id
+        return payload
+
+
 class UnsupportedAnalysisOperationError(Hy3DataAnalystError):
     """An analysis plan requested a non-whitelisted operation."""
 

@@ -6,7 +6,21 @@ JSON 和 JSONL 数据集，并通过 OpenAI 兼容接口调用 Hy3，让 Hy3 负
 
 > 当前进度：阶段 A～K 的可自动化工作已完成；真实客户端验证、录屏和 PR 尚未完成。
 > 当前开发分支：`hy3-data-analyst-mcp`。
-> 最后更新日期：2026-07-23。
+> 最后更新日期：2026-07-25。
+
+## v0.2 开发状态
+
+v0.2 严格按技术规格分阶段实施。阶段 A（评测基线）已完成：新增 4 个合成脱敏数据集和
+36 个机器可读案例，覆盖基础统计、复合分析、趋势、异常、质量和可视化六类，并冻结当前
+v0.1 的离线确定性结果。评测包含 49 个精确数值断言，不调用 Hy3 或修改生产行为。
+
+运行方式和基线口径见 [离线评测说明](evals/README.md)。阶段 B（Schema 与静态校验）也已
+完成：新增严格 Workflow/Step/Params、Evidence Ledger、Report Schema 和数据集感知校验器，
+非法步骤依赖、列名、类型、别名、Pivot 规模和资源预算均在执行前拒绝。实现说明见
+[v0.2 Schema 与静态校验](docs/schema-validation-v0.2.md)。
+
+阶段 B 尚未接入 Hy3 或公开 MCP 工具，现有 v0.1 运行行为保持不变。阶段 C 及后续执行器、
+质量策略、可信报告服务和图表功能尚未开始。
 
 ## 当前已经具备的能力
 
@@ -121,20 +135,18 @@ HY3_MAX_COLUMNS
 最近一次验证在 Windows、Python 3.13.2 环境中完成：
 
 ```text
-Pytest（含 live）：       76 passed，1 skipped
-项目总覆盖率：           87%
-hy3_client.py 覆盖率：  92%
+Pytest（离线）：                  148 passed，1 skipped
+项目总覆盖率：                   90%
+workflow_validator.py 覆盖率：   98%
 Ruff 格式检查：          通过
 Ruff 代码检查：          通过
 Mypy 严格类型检查：      通过
 git diff --check：       通过
 ```
 
-两个跳过项分别是：
-
-1. 真实 TokenHub 冒烟测试：当前没有提供 `HY3_API_KEY`，也没有显式开启 live test。
-2. Windows 符号链接安全测试：当前 Windows 环境不允许创建符号链接；在允许创建符号链接的
-   环境中，该测试仍可执行。
+跳过项是 Windows 符号链接安全测试：当前 Windows 环境不允许创建符号链接；在允许创建
+符号链接的环境中，该测试仍可执行。真实 TokenHub 调用不属于阶段 B，未在本轮质量门禁中
+启用。
 
 仓库中自带的 `uv.exe` 也已经成功执行离线测试。当前运行环境的默认 uv 缓存目录没有写入
 权限，因此测试时将 `UV_CACHE_DIR` 临时指向了仓库内的可写缓存目录。这只是当前环境的
