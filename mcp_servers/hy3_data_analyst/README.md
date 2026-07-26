@@ -6,7 +6,7 @@ JSON 和 JSONL 数据集，并通过 OpenAI 兼容接口调用 Hy3，让 Hy3 负
 
 > 当前进度：阶段 A～K 的可自动化工作已完成；真实客户端验证、录屏和 PR 尚未完成。
 > 当前开发分支：`hy3-data-analyst-mcp`。
-> 最后更新日期：2026-07-25。
+> 最后更新日期：2026-07-26。
 
 ## v0.2 开发状态
 
@@ -19,8 +19,13 @@ v0.1 的离线确定性结果。评测包含 49 个精确数值断言，不调�
 非法步骤依赖、列名、类型、别名、Pivot 规模和资源预算均在执行前拒绝。实现说明见
 [v0.2 Schema 与静态校验](docs/schema-validation-v0.2.md)。
 
-阶段 B 尚未接入 Hy3 或公开 MCP 工具，现有 v0.1 运行行为保持不变。阶段 C 及后续执行器、
-质量策略、可信报告服务和图表功能尚未开始。
+阶段 C（v0.2-alpha 执行器）现已完成：新增安全 View、Evidence Ledger、多步骤执行编排、
+`filter_rows`、`multi_aggregate`、`value_counts` 和 `period_compare`，并将原有 7 类操作接入
+Workflow。Planner 生成 1～6 个步骤且最多修复一次，`analyze_dataset` 返回 Workflow、Ledger、
+View 审计和分步耗时，同时保留由 `primary_step_id` 指定的兼容 `plan`/`evidence` 字段。
+
+阶段 C 实现与边界见 [v0.2 多步骤执行器](docs/workflow-execution-v0.2.md)。阶段 D 及后续质量
+策略执行、可信报告、补充操作和图表功能尚未开始。
 
 ## 当前已经具备的能力
 
@@ -44,6 +49,9 @@ v0.1 的离线确定性结果。评测包含 49 个精确数值断言，不调�
 - 通过本地 Pandas 执行描述统计、分组聚合、Top-K、相关性、月度趋势、缺失值和 IQR
   异常值分析，不执行模型生成的代码或表达式。
 - 将有界的确定性 Evidence 发送给 Hy3 解释，并返回计划、证据、结论、引用、限制和警告。
+- 单次分析可执行最多 6 个有序步骤，Filter View 不修改原始数据，Evidence 使用连续 ID。
+- 支持结构化安全筛选、多指标分组聚合、类别频数/占比和期间对比/变化率。
+- 每步最多序列化 100 条、整个工作流最多 300 条 Evidence records；截断不改变内部计算。
 
 Server 当前会公开以下三个工具：
 
@@ -118,6 +126,9 @@ HY3_DATA_DIR
 HY3_MAX_FILE_SIZE_MB
 HY3_MAX_ROWS
 HY3_MAX_COLUMNS
+HY3_MAX_WORKFLOW_STEPS
+HY3_MAX_EVIDENCE_RECORDS_PER_STEP
+HY3_MAX_EVIDENCE_RECORDS_TOTAL
 ```
 
 主要规则：
@@ -135,9 +146,10 @@ HY3_MAX_COLUMNS
 最近一次验证在 Windows、Python 3.13.2 环境中完成：
 
 ```text
-Pytest（离线）：                  148 passed，1 skipped
-项目总覆盖率：                   90%
+Pytest（离线）：                  175 passed，1 skipped
+项目总覆盖率：                   89%
 workflow_validator.py 覆盖率：   98%
+workflow_executor.py 覆盖率：    86%
 Ruff 格式检查：          通过
 Ruff 代码检查：          通过
 Mypy 严格类型检查：      通过
@@ -221,6 +233,6 @@ content。真实 `analyze_dataset` 随后成功完成分组计划、4 条本地 
 
 ## 下一阶段
 
-TokenHub API 及服务端真实调用已经验证。仍需用户参与的下一步是在 CodeBuddy 和 Cursor 中
-分别确认客户端发现及调用三个工具，并按演示脚本录制 GIF/视频。未经明确授权，本轮不会
-提交、推送或创建 PR。
+按 v0.2 技术规格，下一阶段是阶段 D：实现质量策略执行、完整审计、可信结构化报告、
+Interpreter Repair、数值 Grounding 和 concise/detailed 输出模式。本轮严格停在阶段 C；未经
+明确授权不会进入阶段 D，也不会提交、推送或创建 PR。

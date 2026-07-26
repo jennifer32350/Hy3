@@ -33,6 +33,9 @@ def test_api_key_is_required_only_when_explicitly_requested(fixture_dir: Path) -
         ("HY3_MAX_FILE_SIZE_MB", "not-a-number"),
         ("HY3_MAX_ROWS", "0"),
         ("HY3_MAX_COLUMNS", "0"),
+        ("HY3_MAX_WORKFLOW_STEPS", "7"),
+        ("HY3_MAX_EVIDENCE_RECORDS_PER_STEP", "101"),
+        ("HY3_MAX_EVIDENCE_RECORDS_TOTAL", "301"),
     ],
 )
 def test_invalid_numeric_values_become_project_errors(
@@ -68,3 +71,18 @@ def test_settings_are_immutable(fixture_dir: Path) -> None:
 
     with pytest.raises(ValidationError):
         settings.max_rows = 1
+
+
+def test_phase_c_resource_settings_can_only_lower_hard_limits(fixture_dir: Path) -> None:
+    settings = load_settings(
+        {
+            "HY3_DATA_DIR": str(fixture_dir),
+            "HY3_MAX_WORKFLOW_STEPS": "4",
+            "HY3_MAX_EVIDENCE_RECORDS_PER_STEP": "25",
+            "HY3_MAX_EVIDENCE_RECORDS_TOTAL": "75",
+        }
+    )
+
+    assert settings.max_workflow_steps == 4
+    assert settings.max_evidence_records_per_step == 25
+    assert settings.max_evidence_records_total == 75

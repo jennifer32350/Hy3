@@ -23,6 +23,9 @@ _FIELD_TO_ENV = {
     "max_file_size_mb": "HY3_MAX_FILE_SIZE_MB",
     "max_rows": "HY3_MAX_ROWS",
     "max_columns": "HY3_MAX_COLUMNS",
+    "max_workflow_steps": "HY3_MAX_WORKFLOW_STEPS",
+    "max_evidence_records_per_step": "HY3_MAX_EVIDENCE_RECORDS_PER_STEP",
+    "max_evidence_records_total": "HY3_MAX_EVIDENCE_RECORDS_TOTAL",
 }
 
 
@@ -41,6 +44,9 @@ class Settings(BaseModel):
     max_file_size_mb: int = Field(default=20, gt=0)
     max_rows: int = Field(default=100_000, gt=0)
     max_columns: int = Field(default=200, gt=0)
+    max_workflow_steps: int = Field(default=6, ge=1, le=6)
+    max_evidence_records_per_step: int = Field(default=100, ge=1, le=100)
+    max_evidence_records_total: int = Field(default=300, ge=1, le=300)
 
     @field_validator("api_key", mode="before")
     @classmethod
@@ -107,6 +113,9 @@ def load_settings(source: Mapping[str, str] | None = None) -> Settings:
         "max_file_size_mb": values.get("HY3_MAX_FILE_SIZE_MB", "20"),
         "max_rows": values.get("HY3_MAX_ROWS", "100000"),
         "max_columns": values.get("HY3_MAX_COLUMNS", "200"),
+        "max_workflow_steps": values.get("HY3_MAX_WORKFLOW_STEPS", "6"),
+        "max_evidence_records_per_step": values.get("HY3_MAX_EVIDENCE_RECORDS_PER_STEP", "100"),
+        "max_evidence_records_total": values.get("HY3_MAX_EVIDENCE_RECORDS_TOTAL", "300"),
     }
     try:
         return Settings.model_validate(payload)

@@ -65,6 +65,31 @@ class InvalidAnalysisWorkflowError(Hy3DataAnalystError):
         return payload
 
 
+class WorkflowExecutionError(InvalidAnalysisWorkflowError):
+    """A validated workflow failed during deterministic local execution."""
+
+    def __init__(
+        self,
+        message: str,
+        hint: str,
+        *,
+        step_id: str,
+        completed_evidence: list[dict[str, Any]] | None = None,
+        completed_step_audits: list[dict[str, Any]] | None = None,
+    ) -> None:
+        super().__init__(message, hint, step_id=step_id)
+        self.completed_evidence = completed_evidence or []
+        self.completed_step_audits = completed_step_audits or []
+
+    def as_dict(self) -> dict[str, Any]:
+        payload = super().as_dict()
+        if self.completed_evidence:
+            payload["completed_evidence"] = self.completed_evidence
+        if self.completed_step_audits:
+            payload["completed_step_audits"] = self.completed_step_audits
+        return payload
+
+
 class UnsupportedAnalysisOperationError(Hy3DataAnalystError):
     """An analysis plan requested a non-whitelisted operation."""
 

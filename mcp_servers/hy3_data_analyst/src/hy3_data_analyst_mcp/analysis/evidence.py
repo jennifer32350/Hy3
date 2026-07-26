@@ -21,7 +21,7 @@ class EvidenceLineage(_StrictModel):
 
     source_file_name: str = Field(min_length=1, max_length=255)
     input_ref: str = Field(pattern=r"^(?:source|S0[1-6])$")
-    referenced_columns: list[ColumnName] = Field(default_factory=list, max_length=20)
+    referenced_columns: list[ColumnName] = Field(default_factory=list, max_length=25)
     quality_actions: list[BoundedText] = Field(default_factory=list, max_length=20)
 
     @field_validator("source_file_name")

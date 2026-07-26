@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from hy3_data_analyst_mcp.server import mcp
+from hy3_data_analyst_mcp.tools.analyze_dataset import analyze_dataset
 from hy3_data_analyst_mcp.tools.inspect_dataset import inspect_dataset
 
 
@@ -38,3 +39,18 @@ async def test_inspect_dataset_returns_readable_argument_error() -> None:
 
     assert result["error"] == "InvalidToolArgument"
     assert "between 0 and 20" in result["message"]
+
+
+@pytest.mark.parametrize("max_steps", [0, 7])
+async def test_analyze_dataset_rejects_out_of_bounds_workflow_size(max_steps: int) -> None:
+    result = await analyze_dataset("sales.csv", "Compare revenue.", max_steps=max_steps)
+
+    assert result["error"] == "InvalidToolArgument"
+    assert "between 1 and 6" in result["message"]
+
+
+async def test_analyze_dataset_schema_exposes_optional_max_steps() -> None:
+    tools = await mcp.list_tools()
+    schema = next(tool.inputSchema for tool in tools if tool.name == "analyze_dataset")
+
+    assert schema["properties"]["max_steps"]["default"] == 6

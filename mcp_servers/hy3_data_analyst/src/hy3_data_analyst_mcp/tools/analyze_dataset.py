@@ -13,6 +13,7 @@ async def analyze_dataset(
     file_path: str,
     question: str,
     reasoning_effort: Literal["low", "high"] = "high",
+    max_steps: int = 6,
 ) -> dict[str, Any]:
     """Answer a natural-language question using Hy3 planning and Pandas calculations.
 
@@ -20,6 +21,7 @@ async def analyze_dataset(
         file_path: Path to a dataset under the configured allowed data directory.
         question: Natural-language analysis question to answer from the dataset.
         reasoning_effort: Hy3 reasoning effort, either ``low`` or ``high``.
+        max_steps: Maximum workflow steps, from 1 through the hard limit of 6.
     """
     normalized_question = question.strip()
     if not normalized_question or len(normalized_question) > MAX_QUESTION_LENGTH:
@@ -28,12 +30,19 @@ async def analyze_dataset(
             "message": f"question must contain between 1 and {MAX_QUESTION_LENGTH} characters.",
             "hint": "Provide a concise analysis question and retry.",
         }
+    if not 1 <= max_steps <= 6:
+        return {
+            "error": "InvalidToolArgument",
+            "message": "max_steps must be between 1 and 6.",
+            "hint": "Choose a bounded workflow size and retry.",
+        }
     try:
         settings = load_settings()
         return await AnalysisService(settings).analyze(
             file_path,
             normalized_question,
             reasoning_effort=reasoning_effort,
+            max_steps=max_steps,
         )
     except Hy3DataAnalystError as exc:
         return exc.as_dict()
