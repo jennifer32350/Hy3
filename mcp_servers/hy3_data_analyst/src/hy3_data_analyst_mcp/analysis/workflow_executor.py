@@ -700,9 +700,9 @@ def _comparison_ranges(
         assert params.period_a is not None and params.period_b is not None
         return (
             pd.Timestamp(params.period_a.start),
-            pd.Timestamp(params.period_a.end) + pd.Timedelta(days=1) - pd.Timedelta(nanoseconds=1),
+            pd.Timestamp(params.period_a.end) + pd.Timedelta(days=1) - pd.Timedelta(1, unit="ns"),
             pd.Timestamp(params.period_b.start),
-            pd.Timestamp(params.period_b.end) + pd.Timedelta(days=1) - pd.Timedelta(nanoseconds=1),
+            pd.Timestamp(params.period_b.end) + pd.Timedelta(days=1) - pd.Timedelta(1, unit="ns"),
         )
     frequency = _PERIOD_FREQUENCIES[params.grain]
     current = anchor.to_period(frequency)
