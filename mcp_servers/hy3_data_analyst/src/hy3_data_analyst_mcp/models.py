@@ -2,9 +2,43 @@
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 SemanticType = Literal["numeric", "categorical", "datetime", "boolean", "text", "unknown"]
+SemanticHint = Literal[
+    "identifier",
+    "currency",
+    "percentage",
+    "numeric_string",
+    "date_string",
+]
+QualitySeverity = Literal["info", "warning", "error"]
+
+
+class QualityIssue(BaseModel):
+    """One deterministic, bounded dataset-quality observation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(min_length=1, max_length=64)
+    severity: QualitySeverity
+    message: str = Field(min_length=1, max_length=500)
+    impact: str = Field(min_length=1, max_length=500)
+    column: str | None = Field(default=None, max_length=255)
+    affected_count: int = Field(ge=0)
+    affected_rate: float = Field(ge=0, le=1)
+
+
+class DatasetQuality(BaseModel):
+    """Locally scored quality summary; never a substitute for user judgment."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    score: int = Field(ge=0, le=100)
+    severity: QualitySeverity
+    issues: list[QualityIssue] = Field(default_factory=list, max_length=100)
+    analyzed_rows: int = Field(ge=0)
+    source_modified: Literal[False] = False
 
 
 class FileInfo(BaseModel):
@@ -24,6 +58,10 @@ class ColumnProfile(BaseModel):
     non_null_count: int = Field(ge=0, description="Number of non-null values.")
     missing_rate: float = Field(ge=0, le=1, description="Fraction of values that are null.")
     unique_count: int = Field(ge=0, description="Number of distinct non-null values.")
+    semantic_hints: list[SemanticHint] = Field(
+        default_factory=list,
+        description="Deterministic hints such as identifier, percentage, or conversion risk.",
+    )
     statistics: dict[str, Any] = Field(
         default_factory=dict,
         description="Type-specific, JSON-compatible deterministic statistics.",
@@ -42,3 +80,4 @@ class DatasetProfile(BaseModel):
     sample_rows: list[dict[str, Any]] = Field(
         description="A bounded sample converted to JSON-compatible values."
     )
+    quality: DatasetQuality = Field(description="Deterministic, non-mutating quality summary.")

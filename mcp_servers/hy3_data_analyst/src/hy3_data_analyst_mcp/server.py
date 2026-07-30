@@ -4,6 +4,7 @@ from mcp.server.fastmcp import FastMCP
 
 from hy3_data_analyst_mcp.tools.analyze_dataset import analyze_dataset
 from hy3_data_analyst_mcp.tools.inspect_dataset import inspect_dataset
+from hy3_data_analyst_mcp.tools.render_visualization import render_visualization
 from hy3_data_analyst_mcp.tools.suggest_visualization import suggest_visualization
 
 mcp = FastMCP(
@@ -17,3 +18,4 @@ mcp = FastMCP(
 mcp.tool()(inspect_dataset)
 mcp.tool()(analyze_dataset)
 mcp.tool()(suggest_visualization)
+mcp.tool()(render_visualization)

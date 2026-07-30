@@ -11,13 +11,21 @@
   unsafe filter/derived shapes, invented columns, incompatible strict types, and resource-limit overruns.
 - Evidence and report schemas accept base file names only and enforce bounded records, JSON nesting,
   stable IDs, row accounting, and Evidence references.
-- Phase C executes only 11 alpha whitelist operations. Filter conditions are structured, literal
+- The v0.2 executor exposes only 14 whitelist operations. Filter conditions are structured, literal
   `contains` uses `regex=False`, and empty dependent Views fail closed with a stable step ID.
 - Every internal View is a DataFrame copy. Evidence serialization limits never alter the full bounded
   DataFrame used for deterministic calculations, and source DataFrames/files are not modified.
-- The planner gets one repair attempt, must copy the caller's exact Phase D QualityPolicy, and cannot
-  select Phase E/F operations before those stages are implemented. The policy runs only on a deep
+- The planner gets one repair attempt and must copy the caller's exact QualityPolicy. The policy runs only on a deep
   in-memory copy; every drop/coercion is counted and the source remains unchanged.
+- `derived_metric` accepts one structured binary operator and column/constant operands; it never accepts
+  formula strings. It creates a new View, turns division-by-zero/non-finite results into audited nulls,
+  and cannot overwrite an existing column.
+- Pivot cardinality is checked before and after materialization and cannot exceed 1,000 long-form cells.
+- Chart values come only from a locally re-executed, validated data plan and remain bound to returned
+  Evidence. Hy3 cannot supply chart data points.
+- PNG rendering uses Matplotlib Agg and bounded dimensions. Output requires an existing local
+  `HY3_OUTPUT_DIR`; UNC/URL locations, links/reparse points, traversal, overwrite, out-of-root writes, and
+  files above the configured 5 MB hard limit fail closed. File names are random UUIDs, never user titles.
 - Reports get one bounded repair attempt and then fail closed. Local validators reject unknown Evidence
   IDs, unsupported numeric claims, causal correlation wording, and unjustified high confidence.
 - Report data scope is reconstructed locally from safe base file names, row accounting, Workflow columns,

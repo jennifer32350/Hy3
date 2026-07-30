@@ -36,6 +36,8 @@ def test_api_key_is_required_only_when_explicitly_requested(fixture_dir: Path) -
         ("HY3_MAX_WORKFLOW_STEPS", "7"),
         ("HY3_MAX_EVIDENCE_RECORDS_PER_STEP", "101"),
         ("HY3_MAX_EVIDENCE_RECORDS_TOTAL", "301"),
+        ("HY3_MAX_CHARTS", "4"),
+        ("HY3_MAX_CHART_FILE_SIZE_MB", "6"),
     ],
 )
 def test_invalid_numeric_values_become_project_errors(
@@ -86,3 +88,41 @@ def test_phase_c_resource_settings_can_only_lower_hard_limits(fixture_dir: Path)
     assert settings.max_workflow_steps == 4
     assert settings.max_evidence_records_per_step == 25
     assert settings.max_evidence_records_total == 75
+
+
+def test_chart_settings_are_optional_until_rendering(fixture_dir: Path) -> None:
+    settings = load_settings({"HY3_DATA_DIR": str(fixture_dir)})
+
+    assert settings.output_dir is None
+    assert settings.max_charts == 3
+    assert settings.max_chart_file_size_mb == 5
+    with pytest.raises(ConfigurationError, match="HY3_OUTPUT_DIR"):
+        settings.require_output_dir()
+
+
+def test_chart_output_directory_is_resolved(fixture_dir: Path) -> None:
+    settings = load_settings(
+        {
+            "HY3_DATA_DIR": str(fixture_dir),
+            "HY3_OUTPUT_DIR": str(fixture_dir),
+            "HY3_MAX_CHARTS": "2",
+            "HY3_MAX_CHART_FILE_SIZE_MB": "4",
+        }
+    )
+
+    assert settings.require_output_dir() == fixture_dir.resolve()
+    assert settings.max_charts == 2
+    assert settings.max_chart_file_size_mb == 4
+
+
+@pytest.mark.parametrize("output_dir", [r"\\server\share", "https://example.com/output"])
+def test_chart_output_directory_rejects_remote_locations(
+    fixture_dir: Path, output_dir: str
+) -> None:
+    with pytest.raises(ConfigurationError, match="HY3_OUTPUT_DIR"):
+        load_settings(
+            {
+                "HY3_DATA_DIR": str(fixture_dir),
+                "HY3_OUTPUT_DIR": output_dir,
+            }
+        )

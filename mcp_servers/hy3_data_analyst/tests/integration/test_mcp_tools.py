@@ -9,12 +9,13 @@ from hy3_data_analyst_mcp.tools.analyze_dataset import analyze_dataset
 from hy3_data_analyst_mcp.tools.inspect_dataset import inspect_dataset
 
 
-async def test_tools_list_exposes_exactly_the_three_public_tools() -> None:
+async def test_tools_list_exposes_exactly_the_four_public_tools() -> None:
     tools = await mcp.list_tools()
 
     assert {tool.name for tool in tools} == {
         "analyze_dataset",
         "inspect_dataset",
+        "render_visualization",
         "suggest_visualization",
     }
     assert all(tool.description for tool in tools)
@@ -32,6 +33,8 @@ async def test_inspect_dataset_works_without_api_key(
     assert result["row_count"] == 2
     assert result["column_names"] == ["date", "region", "revenue"]
     assert len(result["sample_rows"]) == 1
+    assert result["quality"]["analyzed_rows"] == 2
+    assert result["quality"]["source_modified"] is False
 
 
 async def test_inspect_dataset_returns_readable_argument_error() -> None:
@@ -60,3 +63,12 @@ async def test_analyze_dataset_schema_exposes_phase_d_options() -> None:
     assert quality_schema["additionalProperties"] is False
     assert quality_schema["properties"]["missing"]["default"] == "keep"
     assert quality_schema["properties"]["duplicates"]["default"] == "keep"
+
+
+async def test_render_visualization_schema_exposes_v02_hard_bounds() -> None:
+    tools = await mcp.list_tools()
+    schema = next(tool.inputSchema for tool in tools if tool.name == "render_visualization")
+
+    assert schema["properties"]["max_charts"]["default"] == 2
+    assert schema["properties"]["width"]["default"] == 1200
+    assert schema["properties"]["height"]["default"] == 720

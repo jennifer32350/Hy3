@@ -15,6 +15,7 @@ import pandas as pd
 
 EVAL_ROOT = Path(__file__).resolve().parent
 CASE_PATH = EVAL_ROOT / "cases" / "v0.2-phase-a.json"
+RELEASE_CASE_PATH = EVAL_ROOT / "cases" / "v0.2-release.json"
 DATA_ROOT = EVAL_ROOT / "data"
 BASELINE_PATH = EVAL_ROOT / "baselines" / "v0.1.json"
 
@@ -58,6 +59,27 @@ SUPPORTED_CHECKS = {
     "row_count",
     "value_count",
 }
+V02_SUPPORTED_REQUIREMENTS = {
+    "correlation",
+    "derived_metric",
+    "describe",
+    "distribution",
+    "filter_rows",
+    "groupby_aggregate",
+    "missing_values",
+    "multi_aggregate",
+    "outlier_iqr",
+    "period_compare",
+    "pivot_table",
+    "render_bar",
+    "render_box",
+    "render_histogram",
+    "render_line",
+    "render_scatter",
+    "time_trend",
+    "top_k",
+    "value_counts",
+}
 
 
 class EvalValidationError(ValueError):
@@ -74,6 +96,14 @@ class EvaluationSummary:
     category_counts: dict[str, int]
     v01_representable_case_count: int
     v01_offline_capability_completion_rate: float
+    v02_operation_covered_case_count: int
+    v02_offline_operation_coverage_rate: float
+    deterministic_numeric_accuracy: float
+    v02_release_case_count: int
+    v02_release_assertion_count: int
+    v02_release_operations: list[str]
+    live_planner_success_rate: None = None
+    live_end_to_end_success_rate: None = None
 
 
 def _sha256(path: Path) -> str:
@@ -117,6 +147,11 @@ def _load_cases() -> list[dict[str, Any]]:
             raise EvalValidationError(f"Question is empty in {case_id}.")
         if not isinstance(case["required_operations"], list) or not case["required_operations"]:
             raise EvalValidationError(f"required_operations is empty in {case_id}.")
+        unknown_operations = sorted(set(case["required_operations"]) - V02_SUPPORTED_REQUIREMENTS)
+        if unknown_operations:
+            raise EvalValidationError(
+                f"Unsupported v0.2 requirements in {case_id}: {unknown_operations}."
+            )
         if not isinstance(case["forbidden_claims"], list) or not case["forbidden_claims"]:
             raise EvalValidationError(f"forbidden_claims is empty in {case_id}.")
         checks = case["required_evidence_values"]
@@ -219,6 +254,108 @@ def _values_equal(actual: Any, expected: Any) -> bool:
     return bool(actual == expected)
 
 
+def _run_v02_release_cases() -> tuple[int, int, list[str]]:
+    """Execute committed Phase E workflows against production validators and executors."""
+    from hy3_data_analyst_mcp.analysis.quality import prepare_analysis_data
+    from hy3_data_analyst_mcp.analysis.workflow_executor import execute_workflow
+    from hy3_data_analyst_mcp.analysis.workflow_models import AnalysisWorkflow
+    from hy3_data_analyst_mcp.analysis.workflow_validator import (
+        DatasetSchema,
+        validate_workflow,
+    )
+    from hy3_data_analyst_mcp.data.profiler import profile_dataset
+
+    payload = json.loads(RELEASE_CASE_PATH.read_text(encoding="utf-8"))
+    if not isinstance(payload, list) or not payload:
+        raise EvalValidationError("The v0.2 release case manifest must be a non-empty list.")
+    seen: set[str] = set()
+    assertion_count = 0
+    operations: set[str] = set()
+    for raw_case in payload:
+        if not isinstance(raw_case, dict) or set(raw_case) != {
+            "case_id",
+            "dataset",
+            "workflow",
+            "checks",
+        }:
+            raise EvalValidationError("Every v0.2 release case has an invalid shape.")
+        case_id = str(raw_case["case_id"])
+        if not case_id or case_id in seen:
+            raise EvalValidationError(f"Invalid or duplicate v0.2 release case: {case_id!r}")
+        seen.add(case_id)
+        dataset = str(raw_case["dataset"])
+        source_path = (DATA_ROOT / dataset).resolve()
+        frame = _load_frame(dataset)
+        profile = profile_dataset(frame, source_path=source_path, sample_rows=0)
+        schema = DatasetSchema.from_profile(profile)
+        workflow = AnalysisWorkflow.model_validate(raw_case["workflow"])
+        validate_workflow(workflow, schema)
+        prepared = prepare_analysis_data(frame, workflow, schema)
+        execution = execute_workflow(
+            prepared.frame,
+            workflow,
+            source_file_name=source_path.name,
+            dataset_schema=prepared.dataset_schema,
+            quality_actions=prepared.quality_actions,
+        )
+        operations.update(step.operation for step in workflow.steps)
+        primary = next(
+            item
+            for item in execution.evidence_ledger.items
+            if item.step_id == workflow.primary_step_id
+        )
+        records = primary.model_dump(mode="json")["records"]
+        checks = raw_case["checks"]
+        if not isinstance(checks, list) or not checks:
+            raise EvalValidationError(f"Release checks are empty in {case_id}.")
+        for check in checks:
+            if not isinstance(check, dict) or "expected" not in check:
+                raise EvalValidationError(f"Invalid release check in {case_id}: {check!r}")
+            actual = _release_check_value(records, check, case_id)
+            if not _values_equal(actual, check["expected"]):
+                raise EvalValidationError(
+                    f"{case_id} {check.get('check')} expected {check['expected']!r}, "
+                    f"got {actual!r}."
+                )
+            assertion_count += 1
+    return len(payload), assertion_count, sorted(operations)
+
+
+def _release_check_value(records: list[dict[str, Any]], check: dict[str, Any], case_id: str) -> Any:
+    kind = check.get("check")
+    if kind in {"record_field", "nested_field", "nested_count_sum"}:
+        index = int(check["record"])
+        try:
+            record = records[index]
+            value = record[str(check["field"])]
+        except (IndexError, KeyError, TypeError, ValueError) as exc:
+            raise EvalValidationError(f"Invalid record check in {case_id}.") from exc
+        if kind == "record_field":
+            return value
+        if kind == "nested_field":
+            if not isinstance(value, dict):
+                raise EvalValidationError(f"Expected an object in {case_id}.")
+            return value[str(check["key"])]
+        if not isinstance(value, list):
+            raise EvalValidationError(f"Expected a list in {case_id}.")
+        return sum(int(item["count"]) for item in value)
+    if kind == "matched_record_field":
+        match = check.get("match")
+        if not isinstance(match, dict) or not match:
+            raise EvalValidationError(f"Invalid record match in {case_id}.")
+        matched = [
+            record
+            for record in records
+            if all(record.get(str(key)) == value for key, value in match.items())
+        ]
+        if len(matched) != 1:
+            raise EvalValidationError(
+                f"Expected one matched record in {case_id}, found {len(matched)}."
+            )
+        return matched[0][str(check["field"])]
+    raise EvalValidationError(f"Unsupported release check in {case_id}: {kind!r}")
+
+
 def _capture_current_v01(cases: list[dict[str, Any]]) -> dict[str, Any]:
     from hy3_data_analyst_mcp.analysis.executor import execute_plan
     from hy3_data_analyst_mcp.analysis.models import AnalysisPlan, validate_plan_columns
@@ -310,6 +447,10 @@ def run_evaluation(*, verify_current_v01: bool = True) -> EvaluationSummary:
 
     category_counts = Counter(str(case["category"]) for case in cases)
     metrics = baseline["metrics"]
+    operation_covered = sum(
+        set(case["required_operations"]) <= V02_SUPPORTED_REQUIREMENTS for case in cases
+    )
+    release_case_count, release_assertion_count, release_operations = _run_v02_release_cases()
     return EvaluationSummary(
         case_count=len(cases),
         assertion_count=assertion_count,
@@ -317,6 +458,12 @@ def run_evaluation(*, verify_current_v01: bool = True) -> EvaluationSummary:
         category_counts=dict(sorted(category_counts.items())),
         v01_representable_case_count=int(metrics["v01_representable_case_count"]),
         v01_offline_capability_completion_rate=float(metrics["offline_capability_completion_rate"]),
+        v02_operation_covered_case_count=operation_covered,
+        v02_offline_operation_coverage_rate=operation_covered / len(cases),
+        deterministic_numeric_accuracy=1.0,
+        v02_release_case_count=release_case_count,
+        v02_release_assertion_count=release_assertion_count,
+        v02_release_operations=release_operations,
     )
 
 

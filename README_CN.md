@@ -36,6 +36,7 @@
 - [Benchmark 附录](#benchmark-附录)
 - [新闻](#新闻)
 - [模型链接](#模型链接)
+- [数据分析 MCP](#数据分析-mcp)
 - [快速开始](#快速开始)
 - [推理和部署](#推理和部署)
   - [vLLM](#使用-vllm-推理)
@@ -105,6 +106,12 @@ Hy3 在软件开发、办公生产、金融建模、前端设计、游戏制作�
 |:---|:---|:---:|:---:|:---:|:---:|
 | Hy3 | Instruct 模型 | 🤗 [Model](https://huggingface.co/tencent/Hy3) | [Model](https://modelscope.cn/models/Tencent-Hunyuan/Hy3) | [Model](https://ai.gitcode.com/tencent_hunyuan/Hy3) | [Model](https://cnb.cool/ai-models/tencent/Hy3) |
 | Hy3-FP8 | FP8 量化 Instruct 模型 | 🤗 [Model](https://huggingface.co/tencent/Hy3-FP8) | [Model](https://modelscope.cn/models/Tencent-Hunyuan/Hy3-FP8) | [Model](https://ai.gitcode.com/tencent_hunyuan/Hy3-FP8) | [Model](https://cnb.cool/ai-models/tencent/Hy3-FP8) |
+
+## 数据分析 MCP
+
+[`hy3_data_analyst`](mcp_servers/hy3_data_analyst/README.md) 子项目提供本地 stdio MCP Server，
+由 Hy3 负责规划与解释、Pandas 负责确定性计算。v0.2 支持有界多步骤工作流、显式数据质量
+策略、Evidence 约束的可信报告和本地 PNG 图表，并且不会执行模型生成的代码。
 
 ## 快速开始
 

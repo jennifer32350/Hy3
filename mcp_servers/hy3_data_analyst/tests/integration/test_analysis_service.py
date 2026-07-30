@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from hy3_data_analyst_mcp.analysis.models import AnalysisPlan
 from hy3_data_analyst_mcp.analysis.planner import AnalysisPlanner
@@ -339,6 +340,33 @@ async def test_workflow_planner_fails_after_exactly_one_repair(
         )
 
     assert len(client.prompts) == 2
+
+
+async def test_workflow_repair_receives_safe_schema_validation_detail(
+    settings: Settings, fixture_dir: Path
+) -> None:
+    invalid_payload = _workflow().model_dump(mode="json")
+    invalid_payload["primary_step_id"] = "S01"
+    try:
+        AnalysisWorkflow.model_validate(invalid_payload)
+    except ValidationError as validation_error:
+        schema_error = Hy3ResponseError("invalid structured output", "retry")
+        schema_error.__cause__ = validation_error
+    else:  # pragma: no cover - protects the test fixture itself
+        raise AssertionError("invalid workflow fixture unexpectedly passed validation")
+    client = StubClient([schema_error, _workflow()])
+
+    workflow = await WorkflowPlanner(client).create_workflow(  # type: ignore[arg-type]
+        "Compare regions",
+        _profile(settings, fixture_dir),
+        reasoning_effort="low",
+        max_steps=3,
+        quality_policy=QualityPolicy(),
+    )
+
+    assert workflow.primary_step_id == "S02"
+    assert "primary_step_id must reference an Evidence-producing step" in client.prompts[1]
+    assert "input_value" not in client.prompts[1]
 
 
 async def test_workflow_planner_repairs_mismatched_requested_quality_policy(

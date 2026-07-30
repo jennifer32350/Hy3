@@ -114,6 +114,14 @@ class InvalidAnalysisReportError(Hy3DataAnalystError):
         return payload
 
 
+class VisualizationRenderError(Hy3DataAnalystError):
+    """A validated chart could not be rendered within deterministic limits."""
+
+
+class OutputAccessDeniedError(VisualizationRenderError):
+    """A chart output path failed the configured filesystem safety boundary."""
+
+
 class UnsupportedAnalysisOperationError(Hy3DataAnalystError):
     """An analysis plan requested a non-whitelisted operation."""
 

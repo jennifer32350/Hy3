@@ -201,16 +201,28 @@ def test_distribution_requires_strictly_increasing_quantiles() -> None:
         )
 
 
-def test_derived_metric_rejects_two_constants_and_extra_formula() -> None:
+def test_derived_metric_rejects_two_constants() -> None:
     params = {
         "output_column": "unsafe",
         "operator": "add",
         "left": {"kind": "constant", "value": 1},
         "right": {"kind": "constant", "value": 2},
-        "formula": "eval('1+2')",
+    }
+    with pytest.raises(ValidationError, match="must not both be constants"):
+        _workflow([_step("derived_metric", params)])
+
+
+def test_derived_metric_rejects_formula_fields_and_illegal_operators() -> None:
+    base = {
+        "output_column": "unsafe",
+        "operator": "add",
+        "left": {"kind": "column", "column": "revenue"},
+        "right": {"kind": "constant", "value": 2},
     }
     with pytest.raises(ValidationError):
-        _workflow([_step("derived_metric", params)])
+        _workflow([_step("derived_metric", {**base, "formula": "eval('1+2')"})])
+    with pytest.raises(ValidationError):
+        _workflow([_step("derived_metric", {**base, "operator": "power"})])
 
 
 @pytest.mark.parametrize(

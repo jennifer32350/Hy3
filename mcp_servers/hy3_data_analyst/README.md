@@ -1,12 +1,15 @@
 # Hy3 数据分析 MCP
 
+[English](README_EN.md)
+
 Hy3 数据分析 MCP 是一个可安装的本地 stdio MCP Server。当前版本可以安全检查 CSV、
 JSON 和 JSONL 数据集，并通过 OpenAI 兼容接口调用 Hy3，让 Hy3 负责规划分析和解释证据，
 由 Pandas 完成确定性的数值计算。
 
-> 当前进度：阶段 A～K 的可自动化工作已完成；真实客户端验证、录屏和 PR 尚未完成。
+> 当前进度：v0.2 阶段 A～F 的仓库内开发已完成，阶段 G 的离线验收已接入；真实 Hy3 指标、
+> 远端 CI、Cursor/CodeBuddy 验证和录屏仍需外部环境，不能由离线结果代替。
 > 当前开发分支：`hy3-data-analyst-mcp`。
-> 最后更新日期：2026-07-26。
+> 最后更新日期：2026-07-28。
 
 ## v0.2 开发状态
 
@@ -28,20 +31,31 @@ View 审计和分步耗时，同时保留由 `primary_step_id` 指定的兼容 `
 可信报告）也已完成：质量处理只作用于内存副本，所有删除/转换均进入审计；结构化报告执行
 Evidence 引用、数值 Grounding、相关性非因果和置信度校验，失败最多 Repair 一次。
 
-阶段 D 详情见 [v0.2 质量策略与可信报告](docs/quality-reporting-v0.2.md)。阶段 E 的补充操作和
-阶段 F 的图表功能尚未开始。
+阶段 D 详情见 [v0.2 质量策略与可信报告](docs/quality-reporting-v0.2.md)。阶段 E 已补齐
+`distribution`、完整网格长表 `pivot_table` 和结构化 `derived_metric`，包括常量分布、
+1000-cell Pivot 上限、缺失组合填充、派生列隔离和除零审计；实现说明见
+[v0.2 阶段 E 操作](docs/phase-e-operations-v0.2.md)。
+
+阶段 F 已新增 Evidence 绑定的 Chart Spec、确定性图表数据执行、Matplotlib Agg 安全 PNG
+渲染和 `render_visualization`。图表支持 bar、line、scatter、histogram、box，输出使用 UUID
+文件名和排他写入，只能落到预先存在的 `HY3_OUTPUT_DIR`；详见
+[v0.2 阶段 F 图表渲染](docs/visualization-rendering-v0.2.md)。阶段 G 的离线评测、85% 覆盖率
+门槛、Python 3.10～3.13 CI 配置、中英文文档与构建检查已纳入仓库；真实客户端与录屏仍是
+人工验收。
 
 ## 当前已经具备的能力
 
 - 使用 `src` 目录结构组织代码，并提供可安装的 Python 软件包。
 - 安装后提供 `hy3-data-analyst-mcp` 控制台命令。
-- 提供基于 FastMCP 的 stdio MCP Server，并声明三个 MCP 工具。
+- 提供基于 FastMCP 的 stdio MCP Server，并声明四个 MCP 工具。
 - 仅通过环境变量读取经过校验的不可变配置。
 - 限制数据文件访问目录，防止路径穿越，并检查扩展名和文件大小。
 - 安全读取 UTF-8、UTF-8-SIG 编码的 CSV、JSON 数组和 JSONL 文件。
 - 用户明确指定时支持 GB18030 编码。
 - 生成数据集概览，包括字段结构、语义类型、缺失值、重复行、数值统计、类别高频值、
   日期范围和可安全序列化为 JSON 的样例行。
+- `inspect_dataset` 返回本地固定规则计算的质量分数、严重程度、问题清单，以及常量列、
+  高基数、疑似 ID、金额/百分比/日期/数值字符串和转换风险提示。
 - `inspect_dataset` 工具已经可用，并且不需要 Hy3 API Key。
 - 提供延迟创建、可注入测试依赖的 `AsyncOpenAI` Hy3 客户端。
 - 支持普通文本响应和基于 JSON Schema 的结构化响应。
@@ -55,18 +69,22 @@ Evidence 引用、数值 Grounding、相关性非因果和置信度校验，失�
 - 将有界的确定性 Evidence 发送给 Hy3 解释，并返回计划、证据、结论、引用、限制和警告。
 - 单次分析可执行最多 6 个有序步骤，Filter View 不修改原始数据，Evidence 使用连续 ID。
 - 支持结构化安全筛选、多指标分组聚合、类别频数/占比和期间对比/变化率。
+- 支持分布/分位数/等宽分箱、受限完整网格 Pivot，以及加减乘除结构化派生指标。
 - 每步最多序列化 100 条、整个工作流最多 300 条 Evidence records；截断不改变内部计算。
 - 支持显式缺失值、重复值、数值转换和日期转换策略，并返回完整 `quality_summary`。
 - 返回带 Evidence ID 的结构化可信报告；所有数值主张由本地 Grounding Validator 校验。
 - `concise` 模式每步最多展示 5 条 records，`detailed` 保留完整受限 Ledger，计算结果一致。
+- 图表规格只引用本地可执行的数据计划和 Evidence；PNG 由本地确定性数据生成并以 MCP
+  `ImageContent` 返回。
 
-Server 当前会公开以下三个工具：
+Server 当前会公开以下四个工具：
 
 - `inspect_dataset`：已经实现并可用。
 - `analyze_dataset`：已经实现并可用；需要配置 `HY3_API_KEY`。
 - `suggest_visualization`：已经实现并可用；需要配置 `HY3_API_KEY`。
+- `render_visualization`：已经实现并可用；需要配置 `HY3_API_KEY` 和 `HY3_OUTPUT_DIR`。
 
-## 完整开发进度
+## v0.1 工程基线进度（历史口径）
 
 | 阶段 | 工作范围 | 当前状态 | 已完成结果或待办事项 |
 | --- | --- | --- | --- |
@@ -79,10 +97,10 @@ Server 当前会公开以下三个工具：
 | G | MCP 协议和最终质量门禁 | 已完成 | Ruff、Mypy、Pytest、覆盖率和已安装 stdio `tools/list` 均已验证。 |
 | H | Wheel 构建和全新环境一键安装验证 | 已完成 | sdist/wheel 构建、用户级 `uv tool install` 和独立目录 stdio 握手成功。 |
 | I | CodeBuddy 和 Cursor 配置 | 模板已完成 | 两个无密钥、无个人路径模板已创建；真实客户端验证待用户环境。 |
-| J | 完整中英文说明、架构和安全文档 | 进行中 | README 已记录逐功能进度，架构、安全和演示脚本已创建；英文 README 仍待补充。 |
-| K | Windows 和 Ubuntu CI | 已完成（待远端运行） | 已创建 Windows/Ubuntu、Python 3.10/3.12 矩阵工作流；需推送后获得真实 CI 结果。 |
+| J | 完整中英文说明、架构和安全文档 | 已完成 | 中英文 README、架构、安全、阶段 E 操作和阶段 F 渲染文档均已补齐。 |
+| K | Windows 和 Ubuntu CI | 已完成（待远端运行） | 已创建 Windows/Ubuntu、Python 3.10～3.13 矩阵工作流；需推送后获得真实 CI 结果。 |
 | L | 真实客户端验证和演示录制 | 待开发 | 需要 TokenHub 权限以及用户参与客户端操作和录屏。 |
-| M | 根 README 入口和 Pull Request 准备 | 待开发 | 必须等前面的阶段全部通过后再执行。 |
+| M | 根 README 入口和 Pull Request 准备 | 进行中 | 根中英文 README 入口已完成；PR 仍需在最终验收后创建。 |
 
 ## 阶段 D 的实现详情
 
@@ -136,6 +154,9 @@ HY3_MAX_COLUMNS
 HY3_MAX_WORKFLOW_STEPS
 HY3_MAX_EVIDENCE_RECORDS_PER_STEP
 HY3_MAX_EVIDENCE_RECORDS_TOTAL
+HY3_OUTPUT_DIR
+HY3_MAX_CHARTS
+HY3_MAX_CHART_FILE_SIZE_MB
 ```
 
 主要规则：
@@ -147,27 +168,32 @@ HY3_MAX_EVIDENCE_RECORDS_TOTAL
 - 默认模型为 `hy3`。
 - 不要把真实 API Key 或个人绝对路径提交到 Git。
 - `.env.example` 只用作配置参考；Server 不会自动加载 `.env` 文件。
+- `HY3_OUTPUT_DIR` 只在渲染时必需，必须是预先存在的本地目录；不接受 URL、UNC、符号链接
+  或重解析点。
 
 ## 当前测试和质量检查结果
 
-最近一次验证在 Windows、Python 3.13.2 环境中完成：
+最近一次验证在 Windows、Python 3.13 环境中完成：
 
 ```text
-Pytest（离线）：                  196 passed，1 skipped
-项目总覆盖率：                   90%
+Pytest（受限沙箱）：              235 passed，3 skipped
+stdio 协议测试（沙箱外复验）：    1 passed
+项目总覆盖率：                   87.20%
 workflow_validator.py 覆盖率：   98%
 workflow_executor.py 覆盖率：    86%
-quality.py 覆盖率：              93%
+quality.py 覆盖率：              96%
 report_service.py 覆盖率：       93%
 Ruff 格式检查：          通过
 Ruff 代码检查：          通过
 Mypy 严格类型检查：      通过
+uv lock --check：        通过
+sdist / wheel 构建：     通过
 git diff --check：       通过
 ```
 
-跳过项是 Windows 符号链接安全测试：当前 Windows 环境不允许创建符号链接；在允许创建
-符号链接的环境中，该测试仍可执行。真实 TokenHub 调用不属于阶段 D，未在本轮质量门禁中
-启用。
+两个环境相关跳过项是 Windows 符号链接安全测试：当前 Windows 环境不允许创建符号链接；
+在允许创建符号链接的环境中仍可执行。受限沙箱中 stdio 子进程命名管道测试也会跳过，但已在
+沙箱外单独复验通过。真实 TokenHub 调用需要有效凭据，未在本轮离线质量门禁中启用。
 
 仓库中自带的 `uv.exe` 也已经成功执行离线测试。当前运行环境的默认 uv 缓存目录没有写入
 权限，因此测试时将 `UV_CACHE_DIR` 临时指向了仓库内的可写缓存目录。这只是当前环境的
@@ -226,22 +252,23 @@ content。真实 `analyze_dataset` 随后成功完成分组计划、4 条本地 
 阶段 E 测试覆盖 7 类执行器、非数值列错误、无效日期列、计划参数约束、额外字段、虚构
 列名、修复成功、两次失败、Evidence 传递以及端到端分析服务编排。
 
-## 阶段 F～K 的实现和部署状态
+## v0.2 工程阶段 F～K 的实现和部署状态
 
 - 图表建议只允许 bar、line、scatter、histogram 和 box，所有字段映射都必须来自真实列名；
   无效结果仅修复一次，不会静默替换字段。
-- 已生成 `dist/hy3_data_analyst_mcp-0.1.0-py3-none-any.whl` 和源码包。
+- 已生成 `dist/hy3_data_analyst_mcp-0.2.0-py3-none-any.whl` 和源码包。
 - 已通过 `uv tool install --force .` 安装用户级命令，并在子项目之外完成 stdio 初始化；
-  `tools/list` 返回且只返回三个预期工具。
+  `tools/list` 返回且只返回四个预期工具。
 - [CodeBuddy 模板](examples/codebuddy.mcp.json) 和 [Cursor 模板](examples/cursor.mcp.json)
   均使用占位密钥与占位绝对路径。Cursor 模板复制到 `.cursor/mcp.json` 后需重载客户端。
 - 已添加 [架构说明](docs/architecture.md)、[安全说明](docs/security.md) 和
   [演示脚本](docs/demo-script.md)，示例销售数据位于 `examples/data/sales.csv`。
-- CI 工作流覆盖 Windows/Ubuntu 和 Python 3.10/3.12，但只有推送到 GitHub 后才能确认远端
+- CI 工作流覆盖 Windows/Ubuntu 和 Python 3.10～3.13，但只有推送到 GitHub 后才能确认远端
   runner 结果。
 
-## 下一阶段
+## 剩余外部验收
 
-按 v0.2 技术规格，下一阶段是阶段 E：实现 `distribution`、`pivot_table` 和
-`derived_metric` 及对应失败路径。本轮严格停在阶段 D；未经明确授权不会进入阶段 E，也不会
-提交、推送或创建 PR。
+仓库内可自动化的 v0.2 开发与门禁完成后，还必须在授权环境中执行真实 Hy3 评测、确认远端
+Windows/Ubuntu CI、在 Cursor 与 CodeBuddy 中验证四个工具和 PNG `ImageContent` 展示，并完成
+无密钥/无个人路径的演示录屏。这些结果必须实际执行后记录，离线操作覆盖率不得冒充 Planner
+成功率或端到端成功率。

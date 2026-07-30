@@ -7,7 +7,12 @@ import pytest
 from hy3_data_analyst_mcp.analysis.workflow_models import AnalysisWorkflow
 from hy3_data_analyst_mcp.analysis.workflow_validator import DatasetSchema, validate_workflow
 from hy3_data_analyst_mcp.errors import InvalidAnalysisWorkflowError
-from hy3_data_analyst_mcp.models import ColumnProfile, DatasetProfile, FileInfo
+from hy3_data_analyst_mcp.models import (
+    ColumnProfile,
+    DatasetProfile,
+    DatasetQuality,
+    FileInfo,
+)
 
 
 def _workflow(
@@ -438,6 +443,7 @@ def test_dataset_schema_can_be_built_from_bounded_profile() -> None:
             ),
         ],
         sample_rows=[],
+        quality=DatasetQuality(score=100, severity="info", analyzed_rows=3),
     )
 
     schema = DatasetSchema.from_profile(profile)

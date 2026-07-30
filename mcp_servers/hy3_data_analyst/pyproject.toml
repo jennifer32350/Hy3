@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hy3-data-analyst-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "A local stdio MCP server for safe, Hy3-assisted data analysis."
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
@@ -12,6 +12,7 @@ license = { text = "Tencent Hunyuan Community License" }
 authors = [{ name = "Tencent Hunyuan" }]
 dependencies = [
     "mcp>=1.27,<2",
+    "matplotlib>=3.8,<4",
     "openai>=2,<3",
     "pandas>=2.2,<4",
     "pydantic>=2.10,<3",

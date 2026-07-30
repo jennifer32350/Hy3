@@ -26,6 +26,9 @@ _FIELD_TO_ENV = {
     "max_workflow_steps": "HY3_MAX_WORKFLOW_STEPS",
     "max_evidence_records_per_step": "HY3_MAX_EVIDENCE_RECORDS_PER_STEP",
     "max_evidence_records_total": "HY3_MAX_EVIDENCE_RECORDS_TOTAL",
+    "output_dir": "HY3_OUTPUT_DIR",
+    "max_charts": "HY3_MAX_CHARTS",
+    "max_chart_file_size_mb": "HY3_MAX_CHART_FILE_SIZE_MB",
 }
 
 
@@ -47,6 +50,9 @@ class Settings(BaseModel):
     max_workflow_steps: int = Field(default=6, ge=1, le=6)
     max_evidence_records_per_step: int = Field(default=100, ge=1, le=100)
     max_evidence_records_total: int = Field(default=300, ge=1, le=300)
+    output_dir: Path | None = None
+    max_charts: int = Field(default=3, ge=1, le=3)
+    max_chart_file_size_mb: int = Field(default=5, ge=1, le=5)
 
     @field_validator("api_key", mode="before")
     @classmethod
@@ -89,6 +95,38 @@ class Settings(BaseModel):
             raise ValueError("data directory must be a directory")
         return path
 
+    @field_validator("output_dir", mode="before")
+    @classmethod
+    def resolve_output_dir(cls, value: object) -> Path | None:
+        """Resolve an optional pre-existing chart output directory."""
+        if value is None or not str(value).strip():
+            return None
+        supplied = str(value).strip()
+        if supplied.startswith(("\\\\", "//")) or "://" in supplied:
+            raise ValueError("output directory must be a local filesystem path")
+        candidate = Path(supplied).expanduser()
+        try:
+            attributes = getattr(candidate.lstat(), "st_file_attributes", 0)
+            if candidate.is_symlink() or attributes & 0x400:
+                raise ValueError("output directory must not be a link or reparse point")
+            path = candidate.resolve(strict=True)
+        except ValueError:
+            raise
+        except (OSError, RuntimeError) as exc:
+            raise ValueError("output directory does not exist or cannot be resolved") from exc
+        if not path.is_dir():
+            raise ValueError("output directory must be a directory")
+        return path
+
+    def require_output_dir(self) -> Path:
+        """Return the safe chart directory or raise only for rendering calls."""
+        if self.output_dir is None:
+            raise ConfigurationError(
+                "HY3_OUTPUT_DIR is required for render_visualization.",
+                "Set HY3_OUTPUT_DIR to an existing writable directory and retry.",
+            )
+        return self.output_dir
+
     def require_api_key(self) -> str:
         """Return the API key or raise an actionable error for Hy3-backed tools."""
         if self.api_key is None:
@@ -116,6 +154,9 @@ def load_settings(source: Mapping[str, str] | None = None) -> Settings:
         "max_workflow_steps": values.get("HY3_MAX_WORKFLOW_STEPS", "6"),
         "max_evidence_records_per_step": values.get("HY3_MAX_EVIDENCE_RECORDS_PER_STEP", "100"),
         "max_evidence_records_total": values.get("HY3_MAX_EVIDENCE_RECORDS_TOTAL", "300"),
+        "output_dir": values.get("HY3_OUTPUT_DIR"),
+        "max_charts": values.get("HY3_MAX_CHARTS", "3"),
+        "max_chart_file_size_mb": values.get("HY3_MAX_CHART_FILE_SIZE_MB", "5"),
     }
     try:
         return Settings.model_validate(payload)

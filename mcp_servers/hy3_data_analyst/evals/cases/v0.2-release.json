@@ -1,0 +1,125 @@
+[
+  {
+    "case_id": "RELEASE-E-01",
+    "dataset": "sales.csv",
+    "workflow": {
+      "version": "2.0",
+      "goal": "Summarize the revenue distribution.",
+      "primary_step_id": "S01",
+      "quality_policy": {
+        "missing": "keep",
+        "duplicates": "keep",
+        "numeric_conversion": "strict",
+        "date_conversion": "coerce"
+      },
+      "steps": [
+        {
+          "step_id": "S01",
+          "input_ref": "source",
+          "purpose": "Compute bounded revenue distribution evidence.",
+          "operation": "distribution",
+          "params": {
+            "target_columns": ["revenue"],
+            "quantiles": [0.25, 0.5, 0.75],
+            "bins": 5
+          }
+        }
+      ],
+      "rationale": "Exercise the formal v0.2 distribution operation."
+    },
+    "checks": [
+      {"check": "record_field", "record": 0, "field": "count", "expected": 17},
+      {"check": "record_field", "record": 0, "field": "missing", "expected": 1},
+      {"check": "nested_field", "record": 0, "field": "quantiles", "key": "0.5", "expected": 1250.0},
+      {"check": "nested_count_sum", "record": 0, "field": "bins", "expected": 17}
+    ]
+  },
+  {
+    "case_id": "RELEASE-E-02",
+    "dataset": "sales.csv",
+    "workflow": {
+      "version": "2.0",
+      "goal": "Create a bounded region and category revenue pivot.",
+      "primary_step_id": "S01",
+      "quality_policy": {
+        "missing": "keep",
+        "duplicates": "keep",
+        "numeric_conversion": "strict",
+        "date_conversion": "coerce"
+      },
+      "steps": [
+        {
+          "step_id": "S01",
+          "input_ref": "source",
+          "purpose": "Compute long-form pivot evidence.",
+          "operation": "pivot_table",
+          "params": {
+            "rows": ["region"],
+            "columns": ["category"],
+            "metrics": [
+              {"column": "revenue", "aggregation": "sum", "alias": "revenue_sum"}
+            ],
+            "fill_value": 0.0
+          }
+        }
+      ],
+      "rationale": "Exercise complete-grid long-form pivot output."
+    },
+    "checks": [
+      {
+        "check": "matched_record_field",
+        "match": {"region": "North", "category": "Software", "metric": "revenue_sum"},
+        "field": "value",
+        "expected": 4100.0
+      },
+      {
+        "check": "matched_record_field",
+        "match": {"region": "West", "category": "Software", "metric": "revenue_sum"},
+        "field": "value",
+        "expected": 0.0
+      }
+    ]
+  },
+  {
+    "case_id": "RELEASE-E-03",
+    "dataset": "sales.csv",
+    "workflow": {
+      "version": "2.0",
+      "goal": "Derive and summarize row-level profit margin.",
+      "primary_step_id": "S02",
+      "quality_policy": {
+        "missing": "keep",
+        "duplicates": "keep",
+        "numeric_conversion": "strict",
+        "date_conversion": "coerce"
+      },
+      "steps": [
+        {
+          "step_id": "S01",
+          "input_ref": "source",
+          "purpose": "Create a safe profit margin View.",
+          "operation": "derived_metric",
+          "params": {
+            "output_column": "profit_margin",
+            "operator": "divide",
+            "left": {"kind": "column", "column": "profit"},
+            "right": {"kind": "column", "column": "revenue"}
+          }
+        },
+        {
+          "step_id": "S02",
+          "input_ref": "S01",
+          "purpose": "Summarize the derived margin.",
+          "operation": "describe",
+          "params": {"target_columns": ["profit_margin"]}
+        }
+      ],
+      "rationale": "Exercise a chainable structured derived metric."
+    },
+    "checks": [
+      {"check": "record_field", "record": 0, "field": "count", "expected": 17},
+      {"check": "record_field", "record": 0, "field": "min", "expected": -0.6923076923076923},
+      {"check": "record_field", "record": 0, "field": "max", "expected": 0.6666666666666666}
+    ]
+  }
+]

@@ -14,14 +14,18 @@ from pydantic import BaseModel, ConfigDict, Field
 from hy3_data_analyst_mcp.analysis.workflow_models import (
     AnalysisStep,
     AnalysisWorkflow,
+    ColumnOperand,
     CorrelationStep,
+    DerivedMetricStep,
     DescribeStep,
+    DistributionStep,
     FilterRowsStep,
     GroupByAggregateStep,
     MissingValuesStep,
     MultiAggregateStep,
     OutlierIQRStep,
     PeriodCompareStep,
+    PivotTableStep,
     TimeTrendStep,
     TopKStep,
     ValueCountsStep,
@@ -201,8 +205,18 @@ def _conversion_columns(
             dates.add(step.params.time_column)
             if step.params.aggregation != "count":
                 numeric.update(step.params.target_columns)
-        elif isinstance(step, OutlierIQRStep):
+        elif isinstance(step, (DistributionStep, OutlierIQRStep)):
             numeric.update(step.params.target_columns)
+        elif isinstance(step, PivotTableStep):
+            numeric.update(
+                metric.column for metric in step.params.metrics if metric.aggregation != "count"
+            )
+        elif isinstance(step, DerivedMetricStep):
+            numeric.update(
+                operand.column
+                for operand in (step.params.left, step.params.right)
+                if isinstance(operand, ColumnOperand)
+            )
         elif isinstance(step, FilterRowsStep):
             for condition in step.params.conditions:
                 values = condition.values or [condition.value]
@@ -228,7 +242,8 @@ def _conversion_columns(
                     if value is not None
                 ):
                     numeric.add(condition.column)
-    return frozenset(numeric), frozenset(dates)
+    source_columns = set(dataset_schema.columns)
+    return frozenset(numeric & source_columns), frozenset(dates & source_columns)
 
 
 def _all_iso_date_literals(values: Iterable[object]) -> bool:
@@ -251,7 +266,8 @@ def _workflow_referenced_columns(
     ordered: dict[str, None] = {}
     for step in workflow.steps:
         for column in _step_referenced_columns(step, all_columns):
-            ordered.setdefault(column, None)
+            if column in all_columns:
+                ordered.setdefault(column, None)
     return tuple(ordered)
 
 
@@ -272,8 +288,20 @@ def _step_referenced_columns(step: AnalysisStep, all_columns: tuple[str, ...]) -
         return [step.params.time_column, *step.params.target_columns]
     if isinstance(step, PeriodCompareStep):
         return [step.params.time_column, *step.params.group_by, *step.params.target_columns]
-    if isinstance(step, OutlierIQRStep):
+    if isinstance(step, (DistributionStep, OutlierIQRStep)):
         return list(step.params.target_columns)
+    if isinstance(step, PivotTableStep):
+        return [
+            *step.params.rows,
+            *step.params.columns,
+            *(metric.column for metric in step.params.metrics),
+        ]
     if isinstance(step, FilterRowsStep):
         return [condition.column for condition in step.params.conditions]
+    if isinstance(step, DerivedMetricStep):
+        return [
+            operand.column
+            for operand in (step.params.left, step.params.right)
+            if isinstance(operand, ColumnOperand)
+        ]
     return []

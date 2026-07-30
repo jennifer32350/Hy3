@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+from pydantic import ValidationError
+
 from hy3_data_analyst_mcp.analysis.prompts import (
     WORKFLOW_PLANNER_SYSTEM_PROMPT,
     WORKFLOW_REPAIR_SYSTEM_PROMPT,
@@ -17,7 +19,7 @@ from hy3_data_analyst_mcp.errors import (
 from hy3_data_analyst_mcp.hy3_client import Hy3Client
 from hy3_data_analyst_mcp.models import DatasetProfile
 
-PHASE_D_ALLOWED_OPERATIONS = [
+PHASE_E_ALLOWED_OPERATIONS = [
     "describe",
     "groupby_aggregate",
     "multi_aggregate",
@@ -27,8 +29,11 @@ PHASE_D_ALLOWED_OPERATIONS = [
     "time_trend",
     "period_compare",
     "missing_values",
+    "distribution",
     "outlier_iqr",
+    "pivot_table",
     "filter_rows",
+    "derived_metric",
 ]
 
 
@@ -61,7 +66,7 @@ class WorkflowPlanner:
                 response_model=AnalysisWorkflow,
                 reasoning_effort=reasoning_effort,
             )
-            _validate_phase_d_workflow(
+            _validate_phase_e_workflow(
                 workflow,
                 dataset,
                 max_steps=max_steps,
@@ -82,7 +87,7 @@ class WorkflowPlanner:
                     response_model=AnalysisWorkflow,
                     reasoning_effort=reasoning_effort,
                 )
-                _validate_phase_d_workflow(
+                _validate_phase_e_workflow(
                     repaired,
                     dataset,
                     max_steps=max_steps,
@@ -97,7 +102,7 @@ class WorkflowPlanner:
                 ) from exc
 
 
-def _validate_phase_d_workflow(
+def _validate_phase_e_workflow(
     workflow: AnalysisWorkflow,
     dataset: DatasetSchema,
     *,
@@ -105,13 +110,13 @@ def _validate_phase_d_workflow(
     quality_policy: QualityPolicy,
 ) -> None:
     unsupported = [
-        step for step in workflow.steps if step.operation not in PHASE_D_ALLOWED_OPERATIONS
+        step for step in workflow.steps if step.operation not in PHASE_E_ALLOWED_OPERATIONS
     ]
     if unsupported:
         step = unsupported[0]
         raise InvalidAnalysisWorkflowError(
-            f"Operation {step.operation} is not available before Phase E.",
-            "Use an operation from the Phase D whitelist.",
+            f"Operation {step.operation} is not in the Phase E whitelist.",
+            "Use an operation from the Phase E whitelist.",
             step_id=step.step_id,
         )
     if workflow.quality_policy != quality_policy:
@@ -144,7 +149,7 @@ def _planning_context(
         {
             "question": question,
             "max_steps": max_steps,
-            "allowed_operations": PHASE_D_ALLOWED_OPERATIONS,
+            "allowed_operations": PHASE_E_ALLOWED_OPERATIONS,
             "requested_quality_policy": quality_policy.model_dump(mode="json"),
             "row_count": profile.row_count,
             "column_count": profile.column_count,
@@ -159,5 +164,16 @@ def _safe_validation_message(error: Exception) -> str:
     if isinstance(error, InvalidAnalysisWorkflowError):
         return error.message
     if isinstance(error, Hy3ResponseError):
+        if isinstance(error.__cause__, ValidationError):
+            details: list[str] = []
+            for issue in error.__cause__.errors(
+                include_url=False,
+                include_context=False,
+                include_input=False,
+            )[:3]:
+                location = ".".join(str(part) for part in issue["loc"]) or "workflow"
+                details.append(f"{location}: {issue['msg']}")
+            if details:
+                return "Workflow schema validation failed: " + "; ".join(details)
         return "The model response did not satisfy the workflow schema."
     return "The workflow failed dataset-aware validation."

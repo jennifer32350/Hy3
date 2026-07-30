@@ -36,6 +36,7 @@
 - [Benchmark Appendix](#benchmark-appendix)
 - [News](#news)
 - [Model Links](#model-links)
+- [Data Analyst MCP](#data-analyst-mcp)
 - [Quickstart](#quickstart)
 - [Deployment](#deployment)
   - [vLLM](#vllm)
@@ -108,6 +109,13 @@ Model usefulness is not fully captured by benchmarks. Based on extensive product
 |:---|:---|:---:|:---:|:---:|:---:|
 | Hy3 | Instruct model | 🤗 [Model](https://huggingface.co/tencent/Hy3) | [Model](https://modelscope.cn/models/Tencent-Hunyuan/Hy3) | [Model](https://ai.gitcode.com/tencent_hunyuan/Hy3) | [Model](https://cnb.cool/ai-models/tencent/Hy3) |
 | Hy3-FP8 | FP8 quantized instruct model | 🤗 [Model](https://huggingface.co/tencent/Hy3-FP8) | [Model](https://modelscope.cn/models/Tencent-Hunyuan/Hy3-FP8) | [Model](https://ai.gitcode.com/tencent_hunyuan/Hy3-FP8) | [Model](https://cnb.cool/ai-models/tencent/Hy3-FP8) |
+
+## Data Analyst MCP
+
+The [`hy3_data_analyst`](mcp_servers/hy3_data_analyst/README_EN.md) subproject is a local stdio MCP
+server that combines Hy3 planning with deterministic Pandas execution. Version 0.2 supports bounded
+multi-step workflows, explicit data-quality policies, Evidence-grounded reports, and locally rendered
+PNG charts without executing model-generated code.
 
 ## Quickstart
 

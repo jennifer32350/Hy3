@@ -1,1 +1,1 @@
-"""MCP tool boundaries."""
+"""Public MCP tool boundaries."""

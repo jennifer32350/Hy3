@@ -234,3 +234,95 @@ def test_policy_that_removes_every_row_fails_closed() -> None:
             ),
             _schema(),
         )
+
+
+def test_phase_e_operations_participate_in_numeric_conversion_and_missing_policy() -> None:
+    frame = pd.DataFrame(
+        {
+            "region": ["North", "South", "South"],
+            "category": ["A", "A", "B"],
+            "amount": ["10", "bad", None],
+        }
+    )
+    schema = DatasetSchema(
+        columns=("region", "category", "amount"),
+        cardinalities={"region": 2, "category": 2, "amount": 2},
+    )
+    workflow = AnalysisWorkflow.model_validate(
+        {
+            "version": "2.0",
+            "goal": "Build and analyze a safely converted metric.",
+            "primary_step_id": "S02",
+            "quality_policy": {
+                "numeric_conversion": "coerce",
+                "missing": "drop_referenced",
+            },
+            "steps": [
+                {
+                    "step_id": "S01",
+                    "operation": "derived_metric",
+                    "input_ref": "source",
+                    "params": {
+                        "output_column": "amount_twice",
+                        "operator": "multiply",
+                        "left": {"kind": "column", "column": "amount"},
+                        "right": {"kind": "constant", "value": 2},
+                    },
+                    "purpose": "Create an isolated numeric View.",
+                },
+                {
+                    "step_id": "S02",
+                    "operation": "distribution",
+                    "input_ref": "S01",
+                    "params": {"target_columns": ["amount_twice"], "bins": 5},
+                    "purpose": "Summarize the derived metric.",
+                },
+            ],
+            "rationale": "Verify Phase E quality-column tracking.",
+        }
+    )
+
+    prepared = prepare_analysis_data(frame, workflow, schema)
+
+    assert prepared.frame["amount"].tolist() == [10.0]
+    assert "amount_twice" not in prepared.frame.columns
+    assert prepared.summary.numeric_values_coerced_to_null == 1
+    assert prepared.summary.referenced_rows_with_missing == 2
+
+
+def test_pivot_non_count_metrics_are_numeric_quality_columns() -> None:
+    frame = pd.DataFrame(
+        {"region": ["North", "South"], "category": ["A", "B"], "amount": ["1", "bad"]}
+    )
+    schema = DatasetSchema(
+        columns=("region", "category", "amount"),
+        cardinalities={"region": 2, "category": 2, "amount": 2},
+    )
+    workflow = AnalysisWorkflow.model_validate(
+        {
+            "version": "2.0",
+            "goal": "Pivot a text-backed numeric measure.",
+            "primary_step_id": "S01",
+            "quality_policy": {"numeric_conversion": "coerce"},
+            "steps": [
+                {
+                    "step_id": "S01",
+                    "operation": "pivot_table",
+                    "input_ref": "source",
+                    "params": {
+                        "rows": ["region"],
+                        "columns": ["category"],
+                        "metrics": [{"column": "amount", "aggregation": "sum", "alias": "total"}],
+                    },
+                    "purpose": "Aggregate the converted values.",
+                }
+            ],
+            "rationale": "Verify Pivot quality-column tracking.",
+        }
+    )
+
+    prepared = prepare_analysis_data(frame, workflow, schema)
+
+    assert prepared.frame["amount"].tolist()[0] == 1.0
+    assert pd.isna(prepared.frame["amount"].tolist()[1])
+    assert prepared.summary.numeric_values_coerced_to_null == 1

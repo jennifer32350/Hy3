@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 import pytest
@@ -429,9 +429,242 @@ def test_existing_operations_run_inside_workflows(
     assert expected_key in item.records[0]
 
 
-def test_phase_e_operation_is_rejected_during_phase_d(
+def test_distribution_has_complete_statistics_and_deterministic_bins(
     frame: pd.DataFrame, dataset_schema: DatasetSchema
 ) -> None:
-    workflow = _workflow([_step("S01", "distribution", {"target_columns": ["revenue"]})])
-    with pytest.raises(WorkflowExecutionError, match="not available"):
+    workflow = _workflow(
+        [
+            _step(
+                "S01",
+                "distribution",
+                {"target_columns": ["revenue"], "quantiles": [0.25, 0.5, 0.75], "bins": 5},
+            )
+        ]
+    )
+
+    record = _execute(frame, workflow, dataset_schema).evidence_ledger.items[0].records[0]
+
+    assert record["count"] == 6
+    assert record["missing"] == 0
+    assert record["mean"] == pytest.approx(133.33333333333334)
+    assert record["std"] == pytest.approx(108.01234497346434)
+    assert record["min"] == 0.0
+    assert record["max"] == 300.0
+    assert record["quantiles"] == {"0.25": 62.5, "0.5": 125.0, "0.75": 187.5}
+    bins = cast(list[dict[str, Any]], record["bins"])
+    assert len(bins) == 5
+    assert sum(item["count"] for item in bins) == 6
+
+
+def test_distribution_constant_and_empty_numeric_columns_are_safe() -> None:
+    frame = pd.DataFrame(
+        {
+            "constant": pd.Series([7.0, 7.0, None], dtype="float64"),
+            "empty": pd.Series([None, None, None], dtype="float64"),
+        }
+    )
+    schema = DatasetSchema(
+        columns=("constant", "empty"),
+        numeric_columns=frozenset({"constant", "empty"}),
+        cardinalities={"constant": 1, "empty": 0},
+    )
+    workflow = _workflow(
+        [
+            _step(
+                "S01",
+                "distribution",
+                {"target_columns": ["constant", "empty"], "bins": 5},
+            )
+        ]
+    )
+
+    item = _execute(frame, workflow, schema).evidence_ledger.items[0]
+
+    assert item.records[0]["bins"] == [{"lower_bound": 7.0, "upper_bound": 7.0, "count": 2}]
+    assert item.records[1]["count"] == 0
+    assert item.records[1]["missing"] == 3
+    assert item.records[1]["bins"] == []
+    assert item.records[1]["mean"] is None
+    assert any("constant" in warning for warning in item.warnings)
+    assert any("no finite" in warning for warning in item.warnings)
+
+
+def test_distribution_rejects_non_numeric_column(
+    frame: pd.DataFrame, dataset_schema: DatasetSchema
+) -> None:
+    workflow = _workflow([_step("S01", "distribution", {"target_columns": ["note"]})])
+
+    with pytest.raises(WorkflowExecutionError, match="requires numeric columns"):
+        _execute(frame, workflow, dataset_schema)
+
+
+def test_pivot_table_outputs_bounded_long_form_records_with_fill(
+    frame: pd.DataFrame, dataset_schema: DatasetSchema
+) -> None:
+    workflow = _workflow(
+        [
+            _step(
+                "S01",
+                "pivot_table",
+                {
+                    "rows": ["region"],
+                    "columns": ["category"],
+                    "metrics": [
+                        {"column": "revenue", "aggregation": "sum", "alias": "revenue_sum"},
+                        {"column": "profit", "aggregation": "mean", "alias": "profit_mean"},
+                    ],
+                    "fill_value": 0.0,
+                },
+            )
+        ]
+    )
+
+    item = _execute(frame, workflow, dataset_schema).evidence_ledger.items[0]
+
+    assert item.metrics["actual_cells"] == 18
+    assert item.metrics["actual_cells"] == len(item.records)
+    assert all(
+        set(record) == {"region", "category", "metric", "aggregation", "value"}
+        for record in item.records
+    )
+    assert {record["metric"] for record in item.records} == {"revenue_sum", "profit_mean"}
+    assert all(record["value"] is not None for record in item.records)
+    missing_combinations = [
+        record
+        for record in item.records
+        if record["region"] == "east" and record["category"] == "A"
+    ]
+    assert {record["value"] for record in missing_combinations} == {0.0}
+
+
+def test_pivot_table_rejects_actual_cardinality_above_bound() -> None:
+    frame = pd.DataFrame(
+        {
+            "row_dimension": list(range(501)),
+            "column_dimension": ["only"] * 501,
+            "value": list(range(501)),
+        }
+    )
+    schema = DatasetSchema(
+        columns=("row_dimension", "column_dimension", "value"),
+        numeric_columns=frozenset({"row_dimension", "value"}),
+        cardinalities={"row_dimension": 1, "column_dimension": 1, "value": 501},
+    )
+    workflow = _workflow(
+        [
+            _step(
+                "S01",
+                "pivot_table",
+                {
+                    "rows": ["row_dimension"],
+                    "columns": ["column_dimension"],
+                    "metrics": [
+                        {"column": "value", "aggregation": "sum", "alias": "total"},
+                        {"column": "value", "aggregation": "count", "alias": "observations"},
+                    ],
+                },
+            )
+        ]
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="above the 1000-cell limit"):
+        _execute(frame, workflow, schema)
+
+
+@pytest.mark.parametrize(
+    ("operator", "expected"),
+    [
+        ("add", [12.0, 24.0]),
+        ("subtract", [8.0, 16.0]),
+        ("multiply", [20.0, 80.0]),
+        ("divide", [5.0, 5.0]),
+    ],
+)
+def test_derived_metric_creates_a_chainable_isolated_view(
+    operator: str, expected: list[float]
+) -> None:
+    frame = pd.DataFrame({"left": [10.0, 20.0], "right": [2.0, 4.0]})
+    original = frame.copy(deep=True)
+    schema = DatasetSchema(
+        columns=("left", "right"),
+        numeric_columns=frozenset({"left", "right"}),
+        cardinalities={"left": 2, "right": 2},
+    )
+    workflow = _workflow(
+        [
+            _step(
+                "S01",
+                "derived_metric",
+                {
+                    "output_column": "derived",
+                    "operator": operator,
+                    "left": {"kind": "column", "column": "left"},
+                    "right": {"kind": "column", "column": "right"},
+                },
+            ),
+            _step("S02", "describe", {"target_columns": ["derived"]}, input_ref="S01"),
+        ]
+    )
+
+    result = _execute(frame, workflow, schema)
+
+    record = result.evidence_ledger.items[0].records[0]
+    assert record["min"] == min(expected)
+    assert record["max"] == max(expected)
+    assert result.step_audits[0].operation == "derived_metric"
+    assert result.step_audits[0].output_rows == len(frame)
+    pd.testing.assert_frame_equal(frame, original)
+    assert "derived" not in frame.columns
+
+
+def test_derived_metric_division_by_zero_is_null_and_audited() -> None:
+    frame = pd.DataFrame({"numerator": [10.0, 5.0], "denominator": [2.0, 0.0]})
+    schema = DatasetSchema(
+        columns=("numerator", "denominator"),
+        numeric_columns=frozenset({"numerator", "denominator"}),
+        cardinalities={"numerator": 2, "denominator": 2},
+    )
+    workflow = _workflow(
+        [
+            _step(
+                "S01",
+                "derived_metric",
+                {
+                    "output_column": "ratio",
+                    "operator": "divide",
+                    "left": {"kind": "column", "column": "numerator"},
+                    "right": {"kind": "column", "column": "denominator"},
+                },
+            ),
+            _step("S02", "describe", {"target_columns": ["ratio"]}, input_ref="S01"),
+        ]
+    )
+
+    result = _execute(frame, workflow, schema)
+
+    assert result.evidence_ledger.items[0].records[0]["count"] == 1
+    assert result.evidence_ledger.items[0].records[0]["missing"] == 1
+    assert result.step_audits[0].warnings == ["Set 1 division-by-zero result(s) to null."]
+
+
+def test_derived_metric_rejects_non_numeric_column(
+    frame: pd.DataFrame, dataset_schema: DatasetSchema
+) -> None:
+    workflow = _workflow(
+        [
+            _step(
+                "S01",
+                "derived_metric",
+                {
+                    "output_column": "invalid",
+                    "operator": "multiply",
+                    "left": {"kind": "column", "column": "note"},
+                    "right": {"kind": "constant", "value": 2},
+                },
+            ),
+            _step("S02", "describe", {"target_columns": ["invalid"]}, input_ref="S01"),
+        ]
+    )
+
+    with pytest.raises(WorkflowExecutionError, match="requires numeric columns"):
         _execute(frame, workflow, dataset_schema)

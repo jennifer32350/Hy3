@@ -24,8 +24,22 @@ Evidence lineage. After execution, Hy3 returns a strict `AnalysisReport`; local 
 Evidence references, numeric grounding, confidence limits, and correlation non-causality. One report
 repair is allowed without rerunning calculations. Local facts replace model-authored data scope.
 
+Phase E completes the workflow whitelist with deterministic distributions, bounded complete-grid pivots,
+and binary derived-metric Views. Derived columns never overwrite source columns, division by zero becomes
+an audited null, and Pivot output is materialized as bounded long-form records.
+
+Phase F adds a separate visualization path. Hy3 selects a strict Chart Spec containing a bounded
+`AnalysisWorkflow` and Evidence binding; the server validates and re-executes that data plan locally.
+Only the resulting deterministic Evidence records reach the Matplotlib Agg renderer. PNG bytes are checked
+before a UUID-named exclusive write inside the configured output root, then returned as MCP ImageContent
+with text metadata.
+
 ```text
 MCP client -> tool boundary -> secure loader/profile -> Hy3 workflow planner -> static validation
                               -> quality copy/audit -> deterministic View/Evidence executor
                               -> bounded ledger -> Hy3 report -> local grounding/repair
+
+MCP client -> render_visualization -> Hy3 Chart Spec -> local workflow validation/execution
+                                   -> Evidence-bound chart records -> Agg PNG renderer
+                                   -> safe output resolver -> TextContent + ImageContent
 ```

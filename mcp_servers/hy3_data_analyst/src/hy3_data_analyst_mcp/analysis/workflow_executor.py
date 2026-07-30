@@ -1,9 +1,10 @@
-"""Deterministic, whitelist-only execution for pre-Phase-E v0.2 workflows."""
+"""Deterministic, whitelist-only execution for Phase E v0.2 workflows."""
 
 from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from itertools import product
 from typing import Any, NoReturn, cast
 
 import numpy as np
@@ -19,8 +20,11 @@ from hy3_data_analyst_mcp.analysis.evidence import (
 from hy3_data_analyst_mcp.analysis.workflow_models import (
     AnalysisStep,
     AnalysisWorkflow,
+    ColumnOperand,
     CorrelationStep,
+    DerivedMetricStep,
     DescribeStep,
+    DistributionStep,
     FilterCondition,
     FilterRowsStep,
     GroupByAggregateStep,
@@ -28,6 +32,7 @@ from hy3_data_analyst_mcp.analysis.workflow_models import (
     MultiAggregateStep,
     OutlierIQRStep,
     PeriodCompareStep,
+    PivotTableStep,
     TimeTrendStep,
     TopKStep,
     ValueCountsStep,
@@ -36,7 +41,7 @@ from hy3_data_analyst_mcp.analysis.workflow_validator import DatasetSchema
 from hy3_data_analyst_mcp.data.profiler import _json_value
 from hy3_data_analyst_mcp.errors import WorkflowExecutionError
 
-PHASE_D_OPERATIONS = frozenset(
+PHASE_E_OPERATIONS = frozenset(
     {
         "describe",
         "groupby_aggregate",
@@ -47,8 +52,11 @@ PHASE_D_OPERATIONS = frozenset(
         "time_trend",
         "period_compare",
         "missing_values",
+        "distribution",
         "outlier_iqr",
+        "pivot_table",
         "filter_rows",
+        "derived_metric",
     }
 )
 _PERIOD_FREQUENCIES = {"month": "M", "quarter": "Q", "year": "Y"}
@@ -119,11 +127,11 @@ def execute_workflow(
     for step in workflow.steps:
         step_started = time.monotonic()
         try:
-            if step.operation not in PHASE_D_OPERATIONS:
+            if step.operation not in PHASE_E_OPERATIONS:
                 _fail(
                     step.step_id,
-                    f"Operation {step.operation} is not available before Phase E.",
-                    "Use one of the Phase D whitelist operations and retry.",
+                    f"Operation {step.operation} is not in the Phase E whitelist.",
+                    "Use one of the supported v0.2 operations and retry.",
                 )
             input_frame = source if step.input_ref == "source" else views[step.input_ref]
             if input_frame.empty:
@@ -144,6 +152,20 @@ def execute_workflow(
                         input_rows=len(input_frame),
                         output_rows=len(output),
                         excluded_rows=len(input_frame) - len(output),
+                    )
+                )
+            elif isinstance(step, DerivedMetricStep):
+                output, warnings = _derived_metric(input_frame, step)
+                views[step.step_id] = output
+                audits.append(
+                    StepAudit(
+                        step_id=step.step_id,
+                        operation=step.operation,
+                        input_ref=step.input_ref,
+                        input_rows=len(input_frame),
+                        output_rows=len(output),
+                        excluded_rows=0,
+                        warnings=warnings,
                     )
                 )
             else:
@@ -225,12 +247,16 @@ def _execute_evidence_step(frame: pd.DataFrame, step: AnalysisStep) -> _Operatio
         return _period_compare(frame, step)
     if isinstance(step, MissingValuesStep):
         return _missing_values(frame, step)
+    if isinstance(step, DistributionStep):
+        return _distribution(frame, step)
     if isinstance(step, OutlierIQRStep):
         return _outlier_iqr(frame, step)
+    if isinstance(step, PivotTableStep):
+        return _pivot_table(frame, step)
     _fail(
         step.step_id,
-        f"Operation {step.operation} has no Phase D deterministic handler.",
-        "Use a supported pre-Phase-E operation.",
+        f"Operation {step.operation} has no Phase E deterministic handler.",
+        "Use a supported v0.2 operation.",
     )
 
 
@@ -253,6 +279,76 @@ def _filter_rows(
     for mask in masks[1:]:
         combined = combined & mask if step.params.combine == "all" else combined | mask
     return frame.loc[combined.fillna(False)].copy(deep=True)
+
+
+def _derived_metric(frame: pd.DataFrame, step: DerivedMetricStep) -> tuple[pd.DataFrame, list[str]]:
+    """Create an isolated View containing one safe binary derived metric."""
+    params = step.params
+    if params.output_column in frame.columns:
+        _fail(
+            step.step_id,
+            f"Derived output column already exists: {params.output_column}.",
+            "Choose a new output_column that does not overwrite input data.",
+        )
+    operand_columns = [
+        operand.column
+        for operand in (params.left, params.right)
+        if isinstance(operand, ColumnOperand)
+    ]
+    _require_numeric(frame, operand_columns, step.step_id)
+
+    left: Any = (
+        frame[params.left.column] if isinstance(params.left, ColumnOperand) else params.left.value
+    )
+    right: Any = (
+        frame[params.right.column]
+        if isinstance(params.right, ColumnOperand)
+        else params.right.value
+    )
+    warnings: list[str] = []
+    zero_divisions = 0
+    safe_right: Any
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        if params.operator == "add":
+            derived = left + right
+        elif params.operator == "subtract":
+            derived = left - right
+        elif params.operator == "multiply":
+            derived = left * right
+        elif params.operator == "divide":
+            if isinstance(right, pd.Series):
+                zero_mask = right.eq(0) & right.notna()
+                zero_divisions = int(zero_mask.sum())
+                safe_right = right.mask(zero_mask, np.nan)
+            else:
+                zero_divisions = len(frame) if right == 0 else 0
+                safe_right = np.nan if right == 0 else right
+            derived = left / safe_right
+        else:  # pragma: no cover - Pydantic rejects undeclared operators.
+            _fail(
+                step.step_id,
+                f"Unsupported derived metric operator: {params.operator}.",
+                "Use add, subtract, multiply, or divide.",
+            )
+
+    if not isinstance(derived, pd.Series):  # Defensive: the schema forbids constant/constant.
+        _fail(
+            step.step_id,
+            "Derived metric requires at least one column operand.",
+            "Use one or two numeric column operands.",
+        )
+    derived = pd.to_numeric(derived, errors="coerce")
+    non_finite = derived.notna() & ~np.isfinite(derived)
+    non_finite_count = int(non_finite.sum())
+    if non_finite_count:
+        derived = derived.mask(non_finite, np.nan)
+        warnings.append(f"Set {non_finite_count} non-finite derived result(s) to null.")
+    if zero_divisions:
+        warnings.append(f"Set {zero_divisions} division-by-zero result(s) to null.")
+
+    output = frame.copy(deep=True)
+    output[params.output_column] = derived
+    return output, warnings
 
 
 def _condition_mask(
@@ -678,6 +774,150 @@ def _missing_values(frame: pd.DataFrame, step: MissingValuesStep) -> _OperationR
     )
 
 
+def _distribution(frame: pd.DataFrame, step: DistributionStep) -> _OperationResult:
+    """Compute bounded numeric summaries and deterministic equal-width bins."""
+    params = step.params
+    _require_numeric(frame, params.target_columns, step.step_id)
+    records: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    usable = pd.Series(False, index=frame.index)
+    for column in params.target_columns:
+        numeric = pd.to_numeric(frame[column], errors="coerce").replace([np.inf, -np.inf], np.nan)
+        usable |= numeric.notna()
+        finite = numeric.dropna()
+        quantiles = {
+            _quantile_label(quantile): _json_value(finite.quantile(quantile))
+            if not finite.empty
+            else None
+            for quantile in params.quantiles
+        }
+        bin_records: list[dict[str, Any]] = []
+        if finite.empty:
+            warnings.append(f"Column {column} contains no finite numeric values.")
+        else:
+            minimum = float(finite.min())
+            maximum = float(finite.max())
+            if minimum == maximum:
+                bin_records.append(
+                    {
+                        "lower_bound": _json_value(minimum),
+                        "upper_bound": _json_value(maximum),
+                        "count": len(finite),
+                    }
+                )
+                warnings.append(
+                    f"Column {column} is constant; returned one valid distribution bin."
+                )
+            else:
+                counts, edges = np.histogram(
+                    finite.to_numpy(dtype=float), bins=params.bins, range=(minimum, maximum)
+                )
+                bin_records.extend(
+                    {
+                        "lower_bound": _json_value(edges[index]),
+                        "upper_bound": _json_value(edges[index + 1]),
+                        "count": int(count),
+                    }
+                    for index, count in enumerate(counts)
+                )
+        records.append(
+            {
+                "column": column,
+                "count": len(finite),
+                "missing": len(frame) - len(finite),
+                "mean": _json_value(finite.mean()) if not finite.empty else None,
+                "std": _json_value(finite.std()) if not finite.empty else None,
+                "min": _json_value(finite.min()) if not finite.empty else None,
+                "max": _json_value(finite.max()) if not finite.empty else None,
+                "quantiles": quantiles,
+                "bins": bin_records,
+            }
+        )
+    return _OperationResult(
+        summary=f"Computed distributions for {len(params.target_columns)} numeric column(s).",
+        records=records,
+        metrics={"columns_analyzed": len(params.target_columns), "requested_bins": params.bins},
+        used_rows=int(usable.sum()),
+        warnings=warnings,
+    )
+
+
+def _pivot_table(frame: pd.DataFrame, step: PivotTableStep) -> _OperationResult:
+    """Compute a bounded pivot and emit dimension/metric/value long-table records."""
+    params = step.params
+    for metric in params.metrics:
+        if metric.aggregation != "count":
+            _require_numeric(frame, [metric.column], step.step_id)
+
+    dimensions = [*params.rows, *params.columns]
+    dimension_sizes = [max(1, int(frame[column].nunique(dropna=False))) for column in dimensions]
+    predicted_cells = len(params.metrics)
+    for size in dimension_sizes:
+        predicted_cells *= size
+    if predicted_cells > 1000:
+        _fail(
+            step.step_id,
+            f"Pivot would create about {predicted_cells} cells, above the 1000-cell limit.",
+            "Reduce pivot dimension cardinality or the number of metrics.",
+        )
+
+    named = {
+        metric.alias: pd.NamedAgg(column=metric.column, aggfunc=metric.aggregation)
+        for metric in params.metrics
+    }
+    observed = frame.groupby(dimensions, dropna=False, sort=False).agg(**named).reset_index()
+    dimension_values = [list(pd.unique(frame[column])) for column in dimensions]
+    grid = pd.DataFrame.from_records(product(*dimension_values), columns=dimensions)
+    wide = grid.merge(observed, how="left", on=dimensions, sort=False, validate="one_to_one")
+    materialized_cells = len(wide) * len(params.metrics)
+    if materialized_cells > 1000:
+        _fail(
+            step.step_id,
+            f"Pivot produced {materialized_cells} cells, above the 1000-cell limit.",
+            "Reduce pivot dimension cardinality or the number of metrics.",
+        )
+
+    aggregation_by_alias = {metric.alias: metric.aggregation for metric in params.metrics}
+    long = wide.melt(
+        id_vars=dimensions,
+        value_vars=[metric.alias for metric in params.metrics],
+        var_name="metric",
+        value_name="value",
+    )
+    long.insert(
+        len(dimensions) + 1,
+        "aggregation",
+        long["metric"].map(aggregation_by_alias),
+    )
+    if params.fill_value is not None:
+        long["value"] = long["value"].fillna(params.fill_value)
+    actual_cells = len(long)
+    if actual_cells > 1000:
+        _fail(
+            step.step_id,
+            f"Pivot long table contains {actual_cells} cells, above the 1000-cell limit.",
+            "Reduce pivot dimension cardinality or the number of metrics.",
+        )
+    records, truncated = _bounded_frame_records(long, 100)
+    metric_columns = list(dict.fromkeys(metric.column for metric in params.metrics))
+    usable = frame[metric_columns].notna().any(axis=1)
+    return _OperationResult(
+        summary=(
+            f"Computed a long-form pivot across {len(dimensions)} dimension(s) "
+            f"and {len(params.metrics)} metric(s)."
+        ),
+        records=records,
+        metrics={
+            "predicted_cells": predicted_cells,
+            "actual_cells": actual_cells,
+            "result_rows": len(long),
+        },
+        used_rows=int(usable.sum()),
+        warnings=[],
+        truncated=truncated,
+    )
+
+
 def _outlier_iqr(frame: pd.DataFrame, step: OutlierIQRStep) -> _OperationResult:
     columns = step.params.target_columns
     _require_numeric(frame, columns, step.step_id)
@@ -738,6 +978,10 @@ def _finite_numeric(series: pd.Series[Any]) -> pd.Series[Any]:
     return result
 
 
+def _quantile_label(value: float) -> str:
+    return format(value, ".15g")
+
+
 def _bounded_frame_records(frame: pd.DataFrame, limit: int) -> tuple[list[dict[str, Any]], bool]:
     records = [
         _json_mapping({str(key): value for key, value in record.items()})
@@ -789,10 +1033,28 @@ def _referenced_columns(step: AnalysisStep, frame: pd.DataFrame) -> list[str]:
                 [step.params.time_column, *step.params.group_by, *step.params.target_columns]
             )
         )
-    if isinstance(step, OutlierIQRStep):
+    if isinstance(step, (DistributionStep, OutlierIQRStep)):
         return list(step.params.target_columns)
+    if isinstance(step, PivotTableStep):
+        return list(
+            dict.fromkeys(
+                [
+                    *step.params.rows,
+                    *step.params.columns,
+                    *(metric.column for metric in step.params.metrics),
+                ]
+            )
+        )
     if isinstance(step, FilterRowsStep):
         return list(dict.fromkeys(condition.column for condition in step.params.conditions))
+    if isinstance(step, DerivedMetricStep):
+        return list(
+            dict.fromkeys(
+                operand.column
+                for operand in (step.params.left, step.params.right)
+                if isinstance(operand, ColumnOperand)
+            )
+        )
     return []
 
 

@@ -10,6 +10,7 @@
 .coverage
 .huggingface/
 .modelscope/
+mcp_servers/hy3_data_analyst/local-output/
 .ms*
 *.swp
 *.log
