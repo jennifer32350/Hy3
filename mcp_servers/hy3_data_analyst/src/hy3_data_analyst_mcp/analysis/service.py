@@ -16,6 +16,7 @@ from hy3_data_analyst_mcp.config import Settings
 from hy3_data_analyst_mcp.data.loader import load_dataset
 from hy3_data_analyst_mcp.data.profiler import profile_dataset
 from hy3_data_analyst_mcp.data.security import resolve_data_file
+from hy3_data_analyst_mcp.errors import InvalidAnalysisReportError
 from hy3_data_analyst_mcp.hy3_client import Hy3Client
 
 
@@ -65,14 +66,6 @@ class AnalysisService:
             quality_actions=prepared.quality_actions,
         )
         ledger = execution.evidence_ledger
-        report = await ReportService(self._client).create_report(
-            question,
-            workflow,
-            ledger,
-            prepared.summary,
-            execution.step_audits,
-            reasoning_effort=reasoning_effort,
-        )
         serialized_ledger = _serialize_ledger(ledger, output_mode=output_mode)
         primary_step = next(
             step for step in workflow.steps if step.step_id == workflow.primary_step_id
@@ -82,19 +75,62 @@ class AnalysisService:
             for item in serialized_ledger["items"]
             if item["step_id"] == workflow.primary_step_id
         )
-        evidence_references = _report_evidence_references(report)
+        report: AnalysisReport | None = None
+        report_error: dict[str, Any] | None = None
+        try:
+            report = await ReportService(self._client).create_report(
+                question,
+                workflow,
+                ledger,
+                prepared.summary,
+                execution.step_audits,
+                reasoning_effort=reasoning_effort,
+            )
+        except InvalidAnalysisReportError as exc:
+            report_error = exc.as_dict()
+            report_error.pop("evidence_ledger", None)
+
+        if report is not None:
+            status = "ok"
+            conclusion = report.executive_summary
+            evidence_references = _report_evidence_references(report)
+            limitations = report.limitations
+            warnings = report.warnings
+            serialized_report: dict[str, Any] | None = report.model_dump(mode="json")
+        else:
+            status = "partial"
+            conclusion = (
+                "Deterministic analysis completed successfully, but Hy3 could not produce "
+                "a schema-valid grounded narrative. Use the Evidence Ledger as the result."
+            )
+            evidence_references = [item.evidence_id for item in ledger.items]
+            limitations = [
+                "The narrative report is unavailable; no model-authored interpretation "
+                "was accepted."
+            ]
+            warnings = list(
+                dict.fromkeys(
+                    [
+                        "Hy3 report generation failed after one repair attempt; "
+                        "deterministic Evidence is preserved.",
+                        *(warning for item in ledger.items for warning in item.warnings),
+                    ]
+                )
+            )[:20]
+            serialized_report = None
         return {
-            "status": "ok",
+            "status": status,
             "plan": _compatibility_plan(primary_step),
             "evidence": _compatibility_evidence(primary_evidence),
-            "conclusion": report.executive_summary,
+            "conclusion": conclusion,
             "evidence_references": evidence_references,
-            "limitations": report.limitations,
-            "warnings": report.warnings,
+            "limitations": limitations,
+            "warnings": warnings,
             "elapsed_ms": round((time.monotonic() - started) * 1000, 2),
             "workflow": workflow.model_dump(mode="json"),
             "evidence_ledger": serialized_ledger,
-            "report": report.model_dump(mode="json"),
+            "report": serialized_report,
+            "report_error": report_error,
             "quality_summary": prepared.summary.model_dump(mode="json"),
             "step_audits": [audit.model_dump(mode="json") for audit in execution.step_audits],
             "step_timings_ms": execution.step_timings_ms,

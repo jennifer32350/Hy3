@@ -12,6 +12,7 @@ import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
 
 from hy3_data_analyst_mcp.analysis.workflow_models import (
+    AggregateRatioStep,
     AnalysisStep,
     AnalysisWorkflow,
     ColumnOperand,
@@ -199,6 +200,12 @@ def _conversion_columns(
             numeric.update(
                 metric.column for metric in step.params.metrics if metric.aggregation != "count"
             )
+        elif isinstance(step, AggregateRatioStep):
+            numeric.update(
+                metric.column
+                for metric in (step.params.numerator, step.params.denominator)
+                if metric.aggregation != "count"
+            )
         elif isinstance(step, CorrelationStep):
             numeric.update(step.params.target_columns)
         elif isinstance(step, (TimeTrendStep, PeriodCompareStep)):
@@ -278,6 +285,12 @@ def _step_referenced_columns(step: AnalysisStep, all_columns: tuple[str, ...]) -
         return [*step.params.group_by, *step.params.target_columns]
     if isinstance(step, MultiAggregateStep):
         return [*step.params.group_by, *(metric.column for metric in step.params.metrics)]
+    if isinstance(step, AggregateRatioStep):
+        return [
+            *step.params.group_by,
+            step.params.numerator.column,
+            step.params.denominator.column,
+        ]
     if isinstance(step, TopKStep):
         return [*step.params.group_by, *step.params.target_columns]
     if isinstance(step, ValueCountsStep):

@@ -144,3 +144,19 @@ class Hy3TimeoutError(Hy3APIError):
 
 class Hy3ResponseError(Hy3APIError):
     """A Hy3 response was absent, malformed, or schema-invalid."""
+
+
+class Hy3StructuredOutputError(Hy3ResponseError):
+    """Structured output failure retaining bounded repair context internally."""
+
+    def __init__(
+        self,
+        message: str,
+        hint: str,
+        *,
+        validation_details: list[str] | None = None,
+        invalid_payload: Any = None,
+    ) -> None:
+        super().__init__(message, hint)
+        self.validation_details = (validation_details or [])[:10]
+        self.invalid_payload = invalid_payload

@@ -30,6 +30,7 @@ from hy3_data_analyst_mcp.analysis.workflow_models import (
 )
 from hy3_data_analyst_mcp.errors import (
     Hy3ResponseError,
+    Hy3StructuredOutputError,
     InvalidAnalysisReportError,
 )
 from hy3_data_analyst_mcp.hy3_client import Hy3Client
@@ -341,6 +342,16 @@ def _report_context(
 
 
 def _safe_report_error(error: Exception) -> str:
+    if isinstance(error, Hy3StructuredOutputError):
+        return json.dumps(
+            {
+                "message": error.message,
+                "validation_details": error.validation_details,
+                "invalid_payload": error.invalid_payload,
+            },
+            ensure_ascii=False,
+            default=str,
+        )[:8_000]
     if isinstance(error, Hy3ResponseError):
-        return "The model response did not satisfy the report schema."
+        return error.message
     return str(error)[:1000]

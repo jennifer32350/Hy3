@@ -1,13 +1,15 @@
 {
   "mcpServers": {
     "hy3-data-analyst": {
+      "type": "stdio",
       "command": "hy3-data-analyst-mcp",
       "args": [],
       "env": {
         "HY3_API_KEY": "YOUR_TOKENHUB_API_KEY",
         "HY3_BASE_URL": "https://tokenhub.tencentmaas.com/v1",
         "HY3_MODEL": "hy3",
-        "HY3_DATA_DIR": "ABSOLUTE_PATH_TO_EXAMPLE_DATA"
+        "HY3_DATA_DIR": "ABSOLUTE_PATH_TO_EXAMPLE_DATA",
+        "HY3_OUTPUT_DIR": "ABSOLUTE_PATH_TO_EXISTING_OUTPUT_DIRECTORY"
       }
     }
   }

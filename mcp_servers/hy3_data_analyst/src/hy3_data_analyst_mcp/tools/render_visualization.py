@@ -14,6 +14,7 @@ from hy3_data_analyst_mcp.analysis.visualization_executor import (
     MIN_HEIGHT,
     MIN_WIDTH,
 )
+from hy3_data_analyst_mcp.analysis.visualization_models import ChartSpec
 from hy3_data_analyst_mcp.analysis.workflow_models import QualityPolicy
 from hy3_data_analyst_mcp.config import load_settings
 from hy3_data_analyst_mcp.errors import Hy3DataAnalystError
@@ -27,6 +28,7 @@ async def render_visualization(
     width: int = 1200,
     height: int = 720,
     quality_policy: QualityPolicy | None = None,
+    chart_specs: list[ChartSpec] | None = None,
 ) -> list[TextContent | ImageContent]:
     """Plan and render Evidence-bound PNG charts from a local dataset.
 
@@ -37,6 +39,8 @@ async def render_visualization(
         width: PNG width in pixels, from 480 through 1920.
         height: PNG height in pixels, from 320 through 1080.
         quality_policy: Explicit missing, duplicate, numeric, and date handling policy.
+        chart_specs: Optional validated specs returned by suggest_visualization. When provided,
+            rendering reuses them and does not ask Hy3 to plan the charts again.
     """
     normalized_goal = goal.strip()
     invalid = _argument_error(normalized_goal, max_charts, width, height)
@@ -60,14 +64,26 @@ async def render_visualization(
                     ),
                 )
             ]
-        charts = await VisualizationRenderService(settings).render(
-            file_path,
-            normalized_goal,
-            max_charts=max_charts,
-            width=width,
-            height=height,
-            quality_policy=quality_policy,
-        )
+        service = VisualizationRenderService(settings)
+        if chart_specs is None:
+            charts = await service.render(
+                file_path,
+                normalized_goal,
+                max_charts=max_charts,
+                width=width,
+                height=height,
+                quality_policy=quality_policy,
+            )
+        else:
+            charts = await service.render(
+                file_path,
+                normalized_goal,
+                max_charts=max_charts,
+                width=width,
+                height=height,
+                quality_policy=quality_policy,
+                chart_specs=chart_specs,
+            )
     except Hy3DataAnalystError as exc:
         return [TextContent(type="text", text=json.dumps(exc.as_dict(), ensure_ascii=False))]
 

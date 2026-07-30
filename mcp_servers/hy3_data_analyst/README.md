@@ -6,10 +6,42 @@ Hy3 数据分析 MCP 是一个可安装的本地 stdio MCP Server。当前版本
 JSON 和 JSONL 数据集，并通过 OpenAI 兼容接口调用 Hy3，让 Hy3 负责规划分析和解释证据，
 由 Pandas 完成确定性的数值计算。
 
+## 一键安装与真实客户端配置
+
+在本目录执行：
+
+```powershell
+uv tool install --force .
+Get-Command hy3-data-analyst-mcp
+```
+
+项目已提供三个无密钥模板：
+
+- CodeBuddy 项目级：复制 `examples/codebuddy.mcp.json` 为 `.codebuddy/mcp.json`。
+- WorkBuddy 项目级：复制 `examples/workbuddy.mcp.json` 为项目根目录
+  `workbuddy.mcp.json`。
+- Cursor 项目级：复制 `examples/cursor.mcp.json` 为 `.cursor/mcp.json`。
+
+把模板中的 `HY3_API_KEY`、`HY3_DATA_DIR`、`HY3_OUTPUT_DIR` 替换为本机值；两个目录必须
+预先存在，密钥不要写入 Git。重启客户端后先确认能看到 4 个工具，再新建 Agent 对话执行：
+
+```text
+依次调用 inspect_dataset、analyze_dataset、suggest_visualization、render_visualization
+分析 sales.csv。按 region 计算 sum(profit)、sum(revenue) 和利润率；图表渲染必须复用
+suggest_visualization 返回的 charts，作为 render_visualization.chart_specs 传入。
+逐步列出工具名、status、Evidence ID、质量策略和最终 PNG 路径，不允许自行补数。
+```
+
+`aggregate_ratio` 会在本地用同一批非缺失行计算聚合比率并写入 Evidence。若确定性计算成功、
+但 Hy3 报告未通过 Schema/Grounding 校验，`analyze_dataset` 返回 `status="partial"`、完整
+Evidence Ledger 和 `report_error`，不会丢失已经验证的数据。`render_visualization.chart_specs`
+可直接复用建议结果，避免第二次请求 Hy3 重新规划。
+
 > 当前进度：v0.2 阶段 A～F 的仓库内开发已完成，阶段 G 的离线验收已接入；真实 Hy3 指标、
-> 远端 CI、Cursor/CodeBuddy 验证和录屏仍需外部环境，不能由离线结果代替。
+> CodeBuddy 四工具真实调用已于 2026-07-30 完成；Cursor/第二客户端复验、远端 CI 和录屏仍需
+> 外部环境，不能由离线结果代替。
 > 当前开发分支：`hy3-data-analyst-mcp`。
-> 最后更新日期：2026-07-28。
+> 最后更新日期：2026-07-30。
 
 ## v0.2 开发状态
 
@@ -96,7 +128,7 @@ Server 当前会公开以下四个工具：
 | F | 图表模型、字段验证、提示词和 `suggest_visualization` | 已完成 | 结构化建议、字段校验、一次修复及真实 TokenHub 图表建议均已通过。 |
 | G | MCP 协议和最终质量门禁 | 已完成 | Ruff、Mypy、Pytest、覆盖率和已安装 stdio `tools/list` 均已验证。 |
 | H | Wheel 构建和全新环境一键安装验证 | 已完成 | sdist/wheel 构建、用户级 `uv tool install` 和独立目录 stdio 握手成功。 |
-| I | CodeBuddy 和 Cursor 配置 | 模板已完成 | 两个无密钥、无个人路径模板已创建；真实客户端验证待用户环境。 |
+| I | CodeBuddy、WorkBuddy 和 Cursor 配置 | 进行中 | 三个无密钥、无个人路径模板已创建；CodeBuddy 四工具调用已完成，第二客户端仍待复验。 |
 | J | 完整中英文说明、架构和安全文档 | 已完成 | 中英文 README、架构、安全、阶段 E 操作和阶段 F 渲染文档均已补齐。 |
 | K | Windows 和 Ubuntu CI | 已完成（待远端运行） | 已创建 Windows/Ubuntu、Python 3.10～3.13 矩阵工作流；需推送后获得真实 CI 结果。 |
 | L | 真实客户端验证和演示录制 | 待开发 | 需要 TokenHub 权限以及用户参与客户端操作和录屏。 |
@@ -176,13 +208,13 @@ HY3_MAX_CHART_FILE_SIZE_MB
 最近一次验证在 Windows、Python 3.13 环境中完成：
 
 ```text
-Pytest（受限沙箱）：              235 passed，3 skipped
+Pytest（受限沙箱）：              243 passed，3 skipped
 stdio 协议测试（沙箱外复验）：    1 passed
-项目总覆盖率：                   87.20%
+项目总覆盖率：                   88%
 workflow_validator.py 覆盖率：   98%
-workflow_executor.py 覆盖率：    86%
-quality.py 覆盖率：              96%
-report_service.py 覆盖率：       93%
+workflow_executor.py 覆盖率：    87%
+quality.py 覆盖率：              94%
+report_service.py 覆盖率：       92%
 Ruff 格式检查：          通过
 Ruff 代码检查：          通过
 Mypy 严格类型检查：      通过
@@ -191,7 +223,7 @@ sdist / wheel 构建：     通过
 git diff --check：       通过
 ```
 
-两个环境相关跳过项是 Windows 符号链接安全测试：当前 Windows 环境不允许创建符号链接；
+三个环境相关跳过项中有两个是 Windows 符号链接安全测试：当前 Windows 环境不允许创建符号链接；
 在允许创建符号链接的环境中仍可执行。受限沙箱中 stdio 子进程命名管道测试也会跳过，但已在
 沙箱外单独复验通过。真实 TokenHub 调用需要有效凭据，未在本轮离线质量门禁中启用。
 

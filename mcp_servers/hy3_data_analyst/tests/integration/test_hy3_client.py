@@ -15,10 +15,12 @@ from hy3_data_analyst_mcp.errors import (
     Hy3AuthenticationError,
     Hy3RateLimitError,
     Hy3ResponseError,
+    Hy3StructuredOutputError,
     Hy3TimeoutError,
 )
 from hy3_data_analyst_mcp.hy3_client import (
     HY3_MAX_OUTPUT_TOKENS,
+    HY3_STRUCTURED_TEMPERATURE,
     HY3_TEMPERATURE,
     HY3_TOP_P,
     Hy3Client,
@@ -65,6 +67,22 @@ async def test_plain_completion_is_non_streaming(fixture_dir: Path) -> None:
     assert completions.calls[0]["temperature"] == HY3_TEMPERATURE
     assert completions.calls[0]["top_p"] == HY3_TOP_P
     assert completions.calls[0]["extra_body"]["chat_template_kwargs"]["reasoning_effort"] == "high"
+
+
+async def test_structured_schema_error_retains_bounded_repair_details(
+    fixture_dir: Path,
+) -> None:
+    client, completions = _client(fixture_dir, [_response('{"value":"bad"}')])
+
+    with pytest.raises(Hy3StructuredOutputError) as captured:
+        await client.complete_structured(
+            system_prompt="system", user_prompt="user", response_model=Answer
+        )
+
+    assert captured.value.invalid_payload == {"value": "bad"}
+    assert any("value" in detail for detail in captured.value.validation_details)
+    assert "invalid_payload" not in captured.value.as_dict()
+    assert completions.calls[0]["temperature"] == HY3_STRUCTURED_TEMPERATURE
 
 
 async def test_low_reasoning_uses_hy3_no_think_mode(fixture_dir: Path) -> None:

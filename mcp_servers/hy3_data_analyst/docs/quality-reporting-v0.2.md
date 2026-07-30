@@ -37,9 +37,9 @@
 - `data_scope` 由本地 Workflow、Ledger 和质量摘要重建，不信任模型填写的路径、行数或列；
 - Evidence 和质量 warning 会确定性合并到报告 warnings。
 
-报告首次不符合 Schema 或语义规则时只 Repair 一次。第二次仍无效时返回
-`InvalidAnalysisReportError`，并保留完整的本地 Evidence Ledger 供用户核验；Repair 不重新
-规划或执行数据计算。
+报告首次不符合 Schema 或语义规则时只 Repair 一次。第二次仍无效时，服务返回
+`status="partial"`、`report=null`、安全的 `report_error` 和完整本地 Evidence Ledger；
+已成功的确定性分析不会再被包装成整次工具失败。Repair 不重新规划或执行数据计算。
 
 ## 输出与兼容
 
@@ -53,7 +53,8 @@ Evidence ID、metrics、warnings 或 report，也不改变计算结果。原有 
 镜像 `primary_step_id`，`conclusion` 等于 `report.executive_summary`。
 
 新增返回字段包括 `report` 和 `quality_summary`；阶段 C 的 `workflow`、`evidence_ledger`、
-`step_audits`、`step_timings_ms` 保持可用。
+`step_audits`、`step_timings_ms` 保持可用。只有 `status="ok"` 时 `conclusion` 才来自
+`report.executive_summary`；`partial` 使用固定说明并要求以 Ledger 为准。
 
 ## 测试覆盖
 
@@ -67,6 +68,6 @@ Evidence ID、metrics、warnings 或 report，也不改变计算结果。原有 
 
 ## 阶段边界
 
-阶段 D 没有新增公开工具，MCP `tools/list` 仍恰好返回三个工具。补充操作属于阶段 E，图表与
+阶段 D 没有新增公开工具。补充操作属于阶段 E，图表与
 `render_visualization` 属于阶段 F；数据库、Web UI、多表 Join、预测模型和任意代码执行仍不在
 v0.2 范围内。

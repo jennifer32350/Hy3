@@ -7,6 +7,36 @@ JSONL datasets. Hy3 plans bounded workflows and explains results; local Pandas/N
 all deterministic calculations. The server never executes model-generated Python, SQL, shell
 commands, formulas, or `DataFrame.query()` expressions.
 
+## One-command install and client setup
+
+From this directory:
+
+```powershell
+uv tool install --force .
+Get-Command hy3-data-analyst-mcp
+```
+
+Copy the relevant secret-free template and replace its environment placeholders:
+
+- CodeBuddy project config: `examples/codebuddy.mcp.json` -> `.codebuddy/mcp.json`
+- WorkBuddy project config: `examples/workbuddy.mcp.json` -> `workbuddy.mcp.json`
+- Cursor project config: `examples/cursor.mcp.json` -> `.cursor/mcp.json`
+
+Both `HY3_DATA_DIR` and `HY3_OUTPUT_DIR` must already exist. Never commit the API key. A runnable
+client prompt is:
+
+```text
+Call inspect_dataset, analyze_dataset, suggest_visualization, then render_visualization on
+sales.csv. By region, compute sum(profit), sum(revenue), and their ratio. Pass the charts returned
+by suggest_visualization to render_visualization.chart_specs. Report each status, Evidence ID,
+quality policy, and PNG path; do not calculate or invent missing values outside the tools.
+```
+
+The local `aggregate_ratio` operation records aligned numerator, denominator, and ratio values in
+Evidence. A rejected Hy3 narrative now yields `status="partial"` with the complete deterministic
+ledger and `report_error`. Supplying `render_visualization.chart_specs` reuses a validated plan and
+avoids a second Hy3 planning call.
+
 ## v0.2 status
 
 The repository implementation covers the automatable scope of phases A through G:
@@ -15,7 +45,7 @@ The repository implementation covers the automatable scope of phases A through G
   deterministic assertions and a frozen v0.1 baseline;
 - strict 1–6 step workflow schemas, dataset-aware validation, immutable Views, and an Evidence
   Ledger with stable IDs and lineage;
-- 14 whitelisted operations, including filters, multi-metric aggregation, period comparison,
+- 15 whitelisted operations, including aggregate ratios, filters, multi-metric aggregation,
   distributions, bounded pivots, and structured derived metrics;
 - explicit missing-value, duplicate, numeric-conversion, and date-conversion policies applied only
   to in-memory copies, with full row and coercion accounting;

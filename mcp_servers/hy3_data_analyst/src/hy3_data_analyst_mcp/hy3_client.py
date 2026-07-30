@@ -16,12 +16,16 @@ from hy3_data_analyst_mcp.errors import (
     Hy3AuthenticationError,
     Hy3RateLimitError,
     Hy3ResponseError,
+    Hy3StructuredOutputError,
     Hy3TimeoutError,
 )
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 HY3_MAX_OUTPUT_TOKENS = 16_384
-HY3_TEMPERATURE = 0.9
+HY3_TEXT_TEMPERATURE = 0.9
+HY3_STRUCTURED_TEMPERATURE = 0.2
+# Backward-compatible name for callers that configured/asserted plain-text requests.
+HY3_TEMPERATURE = HY3_TEXT_TEMPERATURE
 HY3_TOP_P = 1.0
 
 
@@ -59,7 +63,7 @@ class Hy3Client:
                 ],
                 "stream": False,
                 "max_tokens": HY3_MAX_OUTPUT_TOKENS,
-                "temperature": HY3_TEMPERATURE,
+                "temperature": HY3_TEXT_TEMPERATURE,
                 "top_p": HY3_TOP_P,
                 "extra_body": {
                     "chat_template_kwargs": {
@@ -102,7 +106,7 @@ class Hy3Client:
                 ],
                 "stream": False,
                 "max_tokens": HY3_MAX_OUTPUT_TOKENS,
-                "temperature": HY3_TEMPERATURE,
+                "temperature": HY3_STRUCTURED_TEMPERATURE,
                 "top_p": HY3_TOP_P,
                 "extra_body": {
                     "chat_template_kwargs": {
@@ -123,18 +127,41 @@ class Hy3Client:
         )
         try:
             content = response.choices[0].message.content
+        except (AttributeError, IndexError, TypeError) as exc:
+            raise Hy3StructuredOutputError(
+                "Hy3 returned structured output without message content.",
+                "Retry the request or verify endpoint JSON Schema support.",
+                validation_details=["response.choices[0].message.content is missing"],
+            ) from exc
+        if not isinstance(content, str) or not content.strip():
+            raise Hy3StructuredOutputError(
+                "Hy3 returned empty structured output.",
+                "Retry the request or verify endpoint JSON Schema support.",
+                validation_details=["message content must be a non-empty JSON string"],
+            )
+        try:
             payload = json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise Hy3StructuredOutputError(
+                "Hy3 returned invalid JSON structured output.",
+                "Repair the JSON syntax and return only schema-valid JSON.",
+                validation_details=[
+                    f"JSON syntax error at line {exc.lineno}, column {exc.colno}: {exc.msg}"
+                ],
+                invalid_payload=content[:8_000],
+            ) from exc
+        try:
             return response_model.model_validate(payload)
-        except (
-            AttributeError,
-            IndexError,
-            TypeError,
-            json.JSONDecodeError,
-            ValidationError,
-        ) as exc:
-            raise Hy3ResponseError(
-                "Hy3 returned invalid structured output.",
-                "Retry the request; if it persists, verify endpoint JSON Schema support.",
+        except ValidationError as exc:
+            details = [
+                f"{'.'.join(str(part) for part in issue['loc'])}: {issue['msg']}"
+                for issue in exc.errors(include_url=False)[:10]
+            ]
+            raise Hy3StructuredOutputError(
+                "Hy3 returned structured output JSON that does not match the required schema.",
+                "Correct the listed fields and return only schema-valid JSON.",
+                validation_details=details,
+                invalid_payload=payload,
             ) from exc
 
     async def _request(self, payload: dict[str, Any]) -> Any:

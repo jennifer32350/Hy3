@@ -53,6 +53,25 @@ VALID_OPERATION_PARAMS: list[tuple[str, dict[str, Any]]] = [
             "sort_by": "revenue_sum",
         },
     ),
+    (
+        "aggregate_ratio",
+        {
+            "group_by": ["region"],
+            "numerator": {
+                "column": "profit",
+                "aggregation": "sum",
+                "alias": "profit_sum",
+            },
+            "denominator": {
+                "column": "revenue",
+                "aggregation": "sum",
+                "alias": "revenue_sum",
+            },
+            "ratio_alias": "margin_pct",
+            "scale": 100,
+            "sort_by": "margin_pct",
+        },
+    ),
     ("top_k", {"target_columns": ["revenue"], "limit": 5}),
     ("value_counts", {"column": "region", "normalize": True}),
     ("correlation", {"target_columns": ["revenue", "profit"]}),

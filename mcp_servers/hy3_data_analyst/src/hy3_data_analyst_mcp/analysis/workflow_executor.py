@@ -18,6 +18,7 @@ from hy3_data_analyst_mcp.analysis.evidence import (
     EvidenceLineage,
 )
 from hy3_data_analyst_mcp.analysis.workflow_models import (
+    AggregateRatioStep,
     AnalysisStep,
     AnalysisWorkflow,
     ColumnOperand,
@@ -46,6 +47,7 @@ PHASE_E_OPERATIONS = frozenset(
         "describe",
         "groupby_aggregate",
         "multi_aggregate",
+        "aggregate_ratio",
         "top_k",
         "value_counts",
         "correlation",
@@ -235,6 +237,8 @@ def _execute_evidence_step(frame: pd.DataFrame, step: AnalysisStep) -> _Operatio
         return _groupby_aggregate(frame, step)
     if isinstance(step, MultiAggregateStep):
         return _multi_aggregate(frame, step)
+    if isinstance(step, AggregateRatioStep):
+        return _aggregate_ratio(frame, step)
     if isinstance(step, TopKStep):
         return _top_k(frame, step)
     if isinstance(step, ValueCountsStep):
@@ -496,6 +500,71 @@ def _multi_aggregate(frame: pd.DataFrame, step: MultiAggregateStep) -> _Operatio
         },
         used_rows=int(usable.sum()),
         warnings=[],
+        truncated=truncated,
+    )
+
+
+def _aggregate_ratio(frame: pd.DataFrame, step: AggregateRatioStep) -> _OperationResult:
+    """Compute a ratio of aggregates from one explicitly aligned row population."""
+    params = step.params
+    numerator = params.numerator
+    denominator = params.denominator
+    for metric in (numerator, denominator):
+        if metric.aggregation != "count":
+            _require_numeric(frame, [metric.column], step.step_id)
+
+    # Pairwise completeness makes the numerator and denominator populations auditable.
+    usable = frame[numerator.column].notna() & frame[denominator.column].notna()
+    working = frame.loc[usable]
+    named = {
+        numerator.alias: pd.NamedAgg(column=numerator.column, aggfunc=numerator.aggregation),
+        denominator.alias: pd.NamedAgg(column=denominator.column, aggfunc=denominator.aggregation),
+    }
+    result = working.groupby(params.group_by, dropna=False, sort=False).agg(**named).reset_index()
+    denominator_values = pd.to_numeric(result[denominator.alias], errors="coerce")
+    zero_denominator = denominator_values.eq(0)
+    result[params.ratio_alias] = (
+        pd.to_numeric(result[numerator.alias], errors="coerce")
+        .div(denominator_values.mask(zero_denominator))
+        .mul(params.scale)
+    )
+    if params.sort_by is not None:
+        result = result.sort_values(
+            params.sort_by, ascending=params.sort_order == "asc", kind="mergesort"
+        )
+
+    warnings: list[str] = []
+    excluded = int((~usable).sum())
+    if excluded:
+        warnings.append(
+            f"Excluded {excluded} row(s) missing either ratio input so both aggregates "
+            "use identical rows."
+        )
+    if zero_count := int(zero_denominator.sum()):
+        warnings.append(
+            f"Set {zero_count} ratio value(s) to null because the aggregated denominator was zero."
+        )
+    records, truncated = _bounded_frame_records(result, params.limit)
+    return _OperationResult(
+        summary=(
+            f"Computed {params.ratio_alias} as {params.scale} * "
+            f"{numerator.aggregation}({numerator.column}) / "
+            f"{denominator.aggregation}({denominator.column}) by "
+            f"{', '.join(params.group_by)}."
+        ),
+        records=records,
+        metrics={
+            "result_rows": len(result),
+            "ratio_definition": {
+                "numerator": numerator.model_dump(mode="json"),
+                "denominator": denominator.model_dump(mode="json"),
+                "ratio_alias": params.ratio_alias,
+                "scale": params.scale,
+                "aligned_rows": True,
+            },
+        },
+        used_rows=int(usable.sum()),
+        warnings=warnings,
         truncated=truncated,
     )
 
@@ -1017,6 +1086,16 @@ def _referenced_columns(step: AnalysisStep, frame: pd.DataFrame) -> list[str]:
         return list(
             dict.fromkeys(
                 [*step.params.group_by, *(metric.column for metric in step.params.metrics)]
+            )
+        )
+    if isinstance(step, AggregateRatioStep):
+        return list(
+            dict.fromkeys(
+                [
+                    *step.params.group_by,
+                    step.params.numerator.column,
+                    step.params.denominator.column,
+                ]
             )
         )
     if isinstance(step, TopKStep):

@@ -1,6 +1,6 @@
 # v0.2 Phase E deterministic operations
 
-Phase E enables `distribution`, `pivot_table`, and `derived_metric` in the workflow planner and
+Phase E enables `distribution`, `pivot_table`, `derived_metric`, and `aggregate_ratio` in the workflow planner and
 local executor. Dataset values remain untrusted data; none of these operations evaluates model
 generated code or expression strings.
 
@@ -14,6 +14,9 @@ generated code or expression strings.
 - `derived_metric` creates a deep-copied internal View using one structured add, subtract, multiply,
   or divide operation. It never overwrites an existing column or source file. Division-by-zero and
   non-finite results become null and are counted in the View's `StepAudit` warnings.
+- `aggregate_ratio` computes two declared aggregates over the same pairwise-complete rows, then
+  divides them locally. Its Evidence records contain both aggregate values and the ratio; a zero
+  denominator produces null plus a warning. `scale=100` expresses a percentage.
 
 Quality-policy discovery includes all source columns referenced by these operations. Derived output
 columns are intentionally excluded from pre-workflow source conversion and missing-row handling;

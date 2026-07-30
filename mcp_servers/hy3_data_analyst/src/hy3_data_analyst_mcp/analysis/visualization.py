@@ -9,10 +9,6 @@ from typing import Any
 from pydantic import ValidationError
 
 from hy3_data_analyst_mcp.analysis.models import VisualizationSuggestions
-from hy3_data_analyst_mcp.analysis.prompts import (
-    VISUALIZATION_REPAIR_PROMPT,
-    VISUALIZATION_SYSTEM_PROMPT,
-)
 from hy3_data_analyst_mcp.analysis.visualization_executor import (
     ChartExecution,
     cleanup_chart_file,
@@ -21,6 +17,10 @@ from hy3_data_analyst_mcp.analysis.visualization_executor import (
     write_chart_png,
 )
 from hy3_data_analyst_mcp.analysis.visualization_models import ChartSpec, ChartSpecSet
+from hy3_data_analyst_mcp.analysis.visualization_prompts import (
+    VISUALIZATION_REPAIR_PROMPT,
+    VISUALIZATION_SYSTEM_PROMPT,
+)
 from hy3_data_analyst_mcp.analysis.workflow_executor import PHASE_E_OPERATIONS
 from hy3_data_analyst_mcp.analysis.workflow_models import (
     AnalysisWorkflow,
@@ -32,6 +32,7 @@ from hy3_data_analyst_mcp.data.profiler import profile_dataset
 from hy3_data_analyst_mcp.data.security import resolve_data_file
 from hy3_data_analyst_mcp.errors import (
     Hy3ResponseError,
+    Hy3StructuredOutputError,
     InvalidAnalysisPlanError,
     InvalidAnalysisWorkflowError,
     WorkflowExecutionError,
@@ -178,15 +179,29 @@ class VisualizationRenderService:
         width: int,
         height: int,
         quality_policy: QualityPolicy | None = None,
+        chart_specs: list[ChartSpec] | None = None,
     ) -> list[ChartExecution]:
         output_root = self._settings.require_output_dir()
-        suggested = await self._suggestions.suggest(
-            file_path,
-            goal,
-            max_suggestions=max_charts,
-            quality_policy=quality_policy,
-        )
-        specs = [ChartSpec.model_validate(payload) for payload in suggested["charts"]]
+        if chart_specs is not None:
+            if not chart_specs:
+                raise InvalidAnalysisPlanError(
+                    "chart_specs was provided but contains no charts.",
+                    "Pass at least one chart returned by suggest_visualization or omit "
+                    "chart_specs.",
+                )
+            policy = quality_policy or chart_specs[0].data_plan.quality_policy
+            # Client-provided specs are still strict Pydantic objects and are re-executed locally.
+            spec_set = ChartSpecSet(quality_policy=policy, charts=chart_specs[:max_charts])
+            specs = spec_set.charts
+        else:
+            policy = quality_policy or QualityPolicy()
+            suggested = await self._suggestions.suggest(
+                file_path,
+                goal,
+                max_suggestions=max_charts,
+                quality_policy=policy,
+            )
+            specs = [ChartSpec.model_validate(payload) for payload in suggested["charts"]]
         source_path = resolve_data_file(
             file_path,
             allowed_directory=self._settings.data_dir,
@@ -336,18 +351,28 @@ def _visualization_context(
 def _safe_validation_message(error: Exception) -> str:
     if isinstance(error, InvalidAnalysisWorkflowError):
         return error.message
+    if isinstance(error, Hy3StructuredOutputError):
+        return json.dumps(
+            {
+                "message": error.message,
+                "validation_details": error.validation_details,
+                "invalid_payload": error.invalid_payload,
+            },
+            ensure_ascii=False,
+            default=str,
+        )[:8_000]
     if isinstance(error, Hy3ResponseError):
         if isinstance(error.__cause__, ValidationError):
-            details: list[str] = []
-            for issue in error.__cause__.errors(
-                include_url=False,
-                include_context=False,
-                include_input=False,
-            )[:3]:
-                location = ".".join(str(part) for part in issue["loc"]) or "chart_spec"
-                details.append(f"{location}: {issue['msg']}")
+            details = [
+                f"{'.'.join(str(part) for part in issue['loc'])}: {issue['msg']}"
+                for issue in error.__cause__.errors(
+                    include_url=False,
+                    include_context=False,
+                    include_input=False,
+                )[:3]
+            ]
             if details:
-                return "Chart Spec schema validation failed: " + "; ".join(details)
-        return "The model response did not satisfy the Chart Spec schema."
+                return "Chart suggestion schema validation failed: " + "; ".join(details)
+        return error.message
     message = str(error).strip()
     return message[:1000] or "The Chart Spec failed local validation."

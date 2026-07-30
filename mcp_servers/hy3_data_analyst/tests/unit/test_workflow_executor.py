@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, cast
 
 import pandas as pd
@@ -83,6 +84,106 @@ def _workflow(
             "rationale": "Use only local deterministic operations.",
         }
     )
+
+
+def test_aggregate_ratio_uses_one_pairwise_complete_population(
+    frame: pd.DataFrame,
+    dataset_schema: DatasetSchema,
+) -> None:
+    workflow = _workflow(
+        [
+            _step(
+                "S01",
+                "aggregate_ratio",
+                {
+                    "group_by": ["region"],
+                    "numerator": {
+                        "column": "profit",
+                        "aggregation": "sum",
+                        "alias": "profit_sum",
+                    },
+                    "denominator": {
+                        "column": "revenue",
+                        "aggregation": "sum",
+                        "alias": "revenue_sum",
+                    },
+                    "ratio_alias": "margin_pct",
+                    "scale": 100,
+                    "sort_by": "margin_pct",
+                    "sort_order": "desc",
+                },
+            )
+        ]
+    )
+
+    result = execute_workflow(
+        frame,
+        workflow,
+        source_file_name="sales.csv",
+        dataset_schema=dataset_schema,
+    )
+
+    evidence = result.evidence_ledger.items[0]
+    assert evidence.operation == "aggregate_ratio"
+    assert evidence.used_rows == 5
+    assert evidence.excluded_rows == 1
+    assert evidence.records == [
+        {"region": "West", "profit_sum": 60.0, "revenue_sum": 300.0, "margin_pct": 20.0},
+        {"region": "east", "profit_sum": 30.0, "revenue_sum": 200.0, "margin_pct": 15.0},
+        {"region": "East", "profit_sum": 25.0, "revenue_sum": 250.0, "margin_pct": 10.0},
+    ]
+    ratio_definition = cast(dict[str, Any], evidence.metrics["ratio_definition"])
+    assert ratio_definition["aligned_rows"] is True
+
+
+def test_example_sales_margin_regression_matches_client_acceptance_values() -> None:
+    sales_path = Path(__file__).parents[2] / "examples" / "data" / "sales.csv"
+    sales = pd.read_csv(sales_path)
+    workflow = _workflow(
+        [
+            _step(
+                "S01",
+                "aggregate_ratio",
+                {
+                    "group_by": ["region"],
+                    "numerator": {
+                        "column": "profit",
+                        "aggregation": "sum",
+                        "alias": "profit_sum",
+                    },
+                    "denominator": {
+                        "column": "revenue",
+                        "aggregation": "sum",
+                        "alias": "revenue_sum",
+                    },
+                    "ratio_alias": "margin_pct",
+                    "scale": 100,
+                    "sort_by": "margin_pct",
+                },
+            )
+        ]
+    )
+    schema = DatasetSchema(
+        columns=tuple(str(column) for column in sales.columns),
+        numeric_columns=frozenset({"units", "unit_price", "revenue", "cost", "profit"}),
+    )
+
+    result = execute_workflow(
+        sales,
+        workflow,
+        source_file_name="sales.csv",
+        dataset_schema=schema,
+    )
+
+    by_region = {
+        cast(str, record["region"]): record for record in result.evidence_ledger.items[0].records
+    }
+    assert by_region["West"]["revenue_sum"] == 4200.0
+    assert by_region["West"]["profit_sum"] == 100.0
+    assert by_region["West"]["margin_pct"] == pytest.approx(2.38095238095)
+    assert by_region["East"]["margin_pct"] == pytest.approx(54.375)
+    assert by_region["South"]["margin_pct"] == pytest.approx(37.2093023256)
+    assert by_region["North"]["margin_pct"] == pytest.approx(51.1764705882)
 
 
 def _execute(

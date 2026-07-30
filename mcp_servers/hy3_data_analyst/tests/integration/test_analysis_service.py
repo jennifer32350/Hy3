@@ -18,7 +18,6 @@ from hy3_data_analyst_mcp.data.profiler import profile_dataset
 from hy3_data_analyst_mcp.errors import (
     Hy3ResponseError,
     InvalidAnalysisPlanError,
-    InvalidAnalysisReportError,
     InvalidAnalysisWorkflowError,
 )
 
@@ -421,7 +420,7 @@ async def test_analysis_service_passes_evidence_to_reporter(
     assert str(fixture_dir) not in client.prompts[-1]
 
 
-async def test_analysis_service_repairs_then_rejects_unknown_evidence_id(
+async def test_analysis_service_preserves_evidence_when_report_repair_fails(
     settings: Settings,
 ) -> None:
     client = StubClient(
@@ -432,10 +431,15 @@ async def test_analysis_service_repairs_then_rejects_unknown_evidence_id(
         ]
     )
 
-    with pytest.raises(InvalidAnalysisReportError, match="grounded report"):
-        await AnalysisService(settings, client=client).analyze(  # type: ignore[arg-type]
-            "sales.csv", "Compare regional revenue.", reasoning_effort="high", max_steps=3
-        )
+    result = await AnalysisService(settings, client=client).analyze(  # type: ignore[arg-type]
+        "sales.csv", "Compare regional revenue.", reasoning_effort="high", max_steps=3
+    )
+
+    assert result["status"] == "partial"
+    assert result["report"] is None
+    assert result["report_error"]["error"] == "InvalidAnalysisReportError"
+    assert result["evidence_ledger"]["items"]
+    assert result["evidence_references"] == ["E01", "E02"]
 
 
 async def test_comprehensive_business_analysis_executes_three_exact_steps(

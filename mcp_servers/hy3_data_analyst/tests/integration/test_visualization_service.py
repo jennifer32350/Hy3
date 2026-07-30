@@ -7,7 +7,12 @@ import pytest
 from pydantic import ValidationError
 
 from hy3_data_analyst_mcp.analysis.models import ChartSuggestion, VisualizationSuggestions
-from hy3_data_analyst_mcp.analysis.visualization import VisualizationService
+from hy3_data_analyst_mcp.analysis.visualization import (
+    VisualizationRenderService,
+    VisualizationService,
+)
+from hy3_data_analyst_mcp.analysis.visualization_models import ChartSpec
+from hy3_data_analyst_mcp.analysis.workflow_models import QualityPolicy
 from hy3_data_analyst_mcp.config import Settings
 from hy3_data_analyst_mcp.errors import InvalidAnalysisPlanError
 
@@ -110,3 +115,42 @@ async def test_visualization_context_does_not_include_file_path(
     settings: Settings, fixture_dir: Path
 ) -> None:
     assert fixture_dir == settings.data_dir
+
+
+async def test_render_reuses_returned_chart_spec_without_calling_hy3(
+    settings: Settings,
+) -> None:
+    policy = QualityPolicy(missing="drop_referenced")
+    planning_client = StubClient([_suggestion("region")])
+    planned = await VisualizationService(
+        settings,
+        client=planning_client,  # type: ignore[arg-type]
+    ).suggest(
+        "sales.csv",
+        "Compare revenue",
+        max_suggestions=1,
+        quality_policy=policy,
+    )
+    chart = ChartSpec.model_validate(planned["charts"][0])
+    assert chart.data_plan.quality_policy == policy
+    render_client = StubClient([])
+    output_dir = Path(__file__).parents[2] / "local-output"
+    output_dir.mkdir(exist_ok=True)
+    render_settings = settings.model_copy(update={"output_dir": output_dir})
+
+    rendered = await VisualizationRenderService(
+        render_settings,
+        client=render_client,  # type: ignore[arg-type]
+    ).render(
+        "sales.csv",
+        "Reuse the validated chart",
+        max_charts=1,
+        width=800,
+        height=480,
+        chart_specs=[chart],
+    )
+
+    assert len(rendered) == 1
+    assert rendered[0].output_path.exists()
+    assert render_client.calls == 0
+    rendered[0].output_path.unlink()

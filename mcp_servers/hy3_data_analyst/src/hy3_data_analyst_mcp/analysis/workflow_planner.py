@@ -14,6 +14,7 @@ from hy3_data_analyst_mcp.analysis.workflow_models import AnalysisWorkflow, Qual
 from hy3_data_analyst_mcp.analysis.workflow_validator import DatasetSchema, validate_workflow
 from hy3_data_analyst_mcp.errors import (
     Hy3ResponseError,
+    Hy3StructuredOutputError,
     InvalidAnalysisWorkflowError,
 )
 from hy3_data_analyst_mcp.hy3_client import Hy3Client
@@ -23,6 +24,7 @@ PHASE_E_ALLOWED_OPERATIONS = [
     "describe",
     "groupby_aggregate",
     "multi_aggregate",
+    "aggregate_ratio",
     "top_k",
     "value_counts",
     "correlation",
@@ -163,6 +165,16 @@ def _planning_context(
 def _safe_validation_message(error: Exception) -> str:
     if isinstance(error, InvalidAnalysisWorkflowError):
         return error.message
+    if isinstance(error, Hy3StructuredOutputError):
+        return json.dumps(
+            {
+                "message": error.message,
+                "validation_details": error.validation_details,
+                "invalid_payload": error.invalid_payload,
+            },
+            ensure_ascii=False,
+            default=str,
+        )[:8_000]
     if isinstance(error, Hy3ResponseError):
         if isinstance(error.__cause__, ValidationError):
             details: list[str] = []

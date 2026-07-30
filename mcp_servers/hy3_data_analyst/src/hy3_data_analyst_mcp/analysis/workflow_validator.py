@@ -8,6 +8,7 @@ from functools import reduce
 from operator import mul
 
 from hy3_data_analyst_mcp.analysis.workflow_models import (
+    AggregateRatioStep,
     AnalysisStep,
     AnalysisWorkflow,
     ColumnOperand,
@@ -138,6 +139,12 @@ def _referenced_columns(step: AnalysisStep, schema: _ViewSchema) -> set[str]:
             *step.params.group_by,
             *(metric.column for metric in step.params.metrics),
         }
+    if isinstance(step, AggregateRatioStep):
+        return {
+            *step.params.group_by,
+            step.params.numerator.column,
+            step.params.denominator.column,
+        }
     if isinstance(step, TopKStep):
         return {*step.params.target_columns, *step.params.group_by}
     if isinstance(step, ValueCountsStep):
@@ -184,6 +191,12 @@ def _validate_parameter_types(
     elif isinstance(step, MultiAggregateStep):
         numeric_required.update(
             metric.column for metric in step.params.metrics if metric.aggregation != "count"
+        )
+    elif isinstance(step, AggregateRatioStep):
+        numeric_required.update(
+            metric.column
+            for metric in (step.params.numerator, step.params.denominator)
+            if metric.aggregation != "count"
         )
     elif isinstance(step, CorrelationStep):
         numeric_required.update(step.params.target_columns)
@@ -252,6 +265,12 @@ def _validate_output_names(step: AnalysisStep, schema: _ViewSchema) -> None:
     aliases: Collection[str] = ()
     if isinstance(step, (MultiAggregateStep, PivotTableStep)):
         aliases = [metric.alias for metric in step.params.metrics]
+    elif isinstance(step, AggregateRatioStep):
+        aliases = [
+            step.params.numerator.alias,
+            step.params.denominator.alias,
+            step.params.ratio_alias,
+        ]
     conflicts = sorted(set(aliases) & schema.columns)
     if conflicts:
         _fail(step.step_id, f"Output aliases conflict with input columns: {', '.join(conflicts)}.")

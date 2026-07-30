@@ -14,6 +14,7 @@ Operation: TypeAlias = Literal[
     "describe",
     "groupby_aggregate",
     "multi_aggregate",
+    "aggregate_ratio",
     "top_k",
     "value_counts",
     "correlation",
@@ -40,6 +41,7 @@ EVIDENCE_OPERATIONS = frozenset(
         "describe",
         "groupby_aggregate",
         "multi_aggregate",
+        "aggregate_ratio",
         "top_k",
         "value_counts",
         "correlation",
@@ -250,6 +252,30 @@ class MultiAggregateParams(StrictSchemaModel):
         return self
 
 
+class AggregateRatioParams(StrictSchemaModel):
+    """Aggregate two metrics over identical rows and compute their ratio."""
+
+    group_by: list[ColumnName] = Field(min_length=1, max_length=5)
+    numerator: AggregateMetric
+    denominator: AggregateMetric
+    ratio_alias: OutputAlias
+    scale: Literal[1, 100] = 1
+    sort_by: ColumnName | None = None
+    sort_order: SortOrder = "desc"
+    limit: int = Field(default=20, ge=1, le=100)
+
+    @model_validator(mode="after")
+    def validate_outputs(self) -> AggregateRatioParams:
+        _require_unique(self.group_by, "group_by")
+        aliases = [self.numerator.alias, self.denominator.alias, self.ratio_alias]
+        _require_unique(aliases, "aggregate ratio aliases")
+        if set(aliases) & set(self.group_by):
+            raise ValueError("aggregate ratio aliases must not conflict with group_by columns")
+        if self.sort_by is not None and self.sort_by not in {*self.group_by, *aliases}:
+            raise ValueError("sort_by must name a group_by column or output alias")
+        return self
+
+
 class ValueCountsParams(StrictSchemaModel):
     column: ColumnName
     group_by: list[ColumnName] = Field(default_factory=list, max_length=3)
@@ -391,6 +417,11 @@ class MultiAggregateStep(_BaseStep):
     params: MultiAggregateParams
 
 
+class AggregateRatioStep(_BaseStep):
+    operation: Literal["aggregate_ratio"]
+    params: AggregateRatioParams
+
+
 class TopKStep(_BaseStep):
     operation: Literal["top_k"]
     params: TopKParams
@@ -450,6 +481,7 @@ AnalysisStep: TypeAlias = Annotated[
     DescribeStep
     | GroupByAggregateStep
     | MultiAggregateStep
+    | AggregateRatioStep
     | TopKStep
     | ValueCountsStep
     | CorrelationStep
