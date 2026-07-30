@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "hy3-data-analyst-mcp"
 version = "0.2.0"
 description = "A local stdio MCP server for safe, Hy3-assisted data analysis."
-readme = { text = "Hy3 Data Analyst MCP is a local stdio MCP server for safe, Hy3-assisted analysis of CSV, JSON, and JSONL datasets. See the repository README for installation, configuration, client setup, and examples.", content-type = "text/markdown" }
+readme = "README.md"
 requires-python = ">=3.10,<3.14"
 license = { text = "Tencent Hunyuan Community License" }
 authors = [{ name = "Tencent Hunyuan" }]
